@@ -1,4 +1,8 @@
-
+/**
+	Code was initially downloaded from https://docs.opencv.org/4.1.1/db/d28/tutorial_cascade_classifier.html, and modifed
+	to accept a file path as an input and processes face/eye detection on that single image (instead of the original stream of 
+	images from a camera device). 
+*/
 
 #include "opencv2/objdetect.hpp"
 #include "opencv2/highgui.hpp"
