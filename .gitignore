@@ -30,3 +30,14 @@
 *.exe
 *.out
 *.app
+
+ex1/face-detection/face_detect
+ex1/sharpen-psf/sharpen
+ex1/simpler-capture-4/brighten
+ex1/simpler-capture-4/capture
+ex1/simpler-capture-4/brighten
+ex1/simpler-capture-4/capture_timed
+ex1/simpler-capture-4/diffcapture
+ex1/simpler-capture-4/gstream_cap
+ex1/simpler-capture-4/ipcapture
+ex1/simpler-capture-4/videowriter
