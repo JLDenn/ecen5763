@@ -1,3 +1,20 @@
+/**
+	@author	Justin Denning
+	@date	5 June 2025
+	
+	@Description
+		This code makes use of opencv to open a video capture device (camera), add a border and crosshairs
+		to the image and displays it live. It also saves the final frame to a file when closing. 
+		
+		Console printouts of the image processing time are printed when enabled (Modify STAT_PRINT_INTERVAL 
+		macro below if desired)
+	
+	@note
+		This code in its entirety was written personally by Justin Denning for 
+		Exercise #1 in ECEN5763 Summer 2025
+**/
+
+
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
 #include <iostream>
@@ -22,6 +39,7 @@
 //Define the interval (in ms) that we wish to print the image processing time to the console 
 //	set to 0 to disable
 #define STAT_PRINT_INTERVAL		1000
+
 
 using namespace cv;
 using namespace std;
@@ -48,14 +66,14 @@ int main(int argc, char *argv[]){
 	//	to print next. 
 	auto nextFrameStat = chrono::high_resolution_clock::now() + chrono::milliseconds(STAT_PRINT_INTERVAL);
 #endif
+
+	Mat frame;
 	
 	while(1){
 #if STAT_PRINT_INTERVAL
 		//Collect the start time so we can calculate the image processing time. 
 		auto start = chrono::high_resolution_clock::now();
 #endif
-		
-		Mat frame;
 		
 		//Read frame and verify it is valid
 		cap >> frame;
@@ -102,6 +120,15 @@ int main(int argc, char *argv[]){
 		//	which will cause us to quit. 
 		if(waitKey(10) == ESCAPE)
 			break;
+	}
+	
+	//If we have a valid frame at quit, we'll write that frame to a file
+	if(!frame.empty()){
+		vector<int> compression_params;
+		compression_params.push_back(IMWRITE_PNG_COMPRESSION);
+		compression_params.push_back(9);
+		if(!imwrite("320x240Capture.png", frame, compression_params))
+			cout << "Error writing final image to file" << endl;
 	}
 	
 	//Cleanup the window we created (close it)
