@@ -45,3 +45,8 @@ ex1/simpler-capture-4/videowriter
 ex1/overlay/overlay
 ex1/overlay/320x240Capture.png
 
+# Compiled and Media files we don't need to push
+ex2/q1/*.ppm
+ex2/*.mp4
+
+ex2/q2/sobel
