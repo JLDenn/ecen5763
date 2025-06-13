@@ -49,12 +49,13 @@ ex1/overlay/320x240Capture.png
 ex2/q1/*.ppm
 ex2/*.mp4
 ex2/q4/v4l2/*.ppm
+ex2/q4/v4l2/*.pgm
 
 ex2/q2/sobel
 ex2/q3/canny
 ex2/q4/opencv/capture
 ex2/q4/v4l2/capture
 ex2/q4/overlay/overlay
-
+ex2/q5/edge
 
 
