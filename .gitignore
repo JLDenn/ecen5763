@@ -48,5 +48,13 @@ ex1/overlay/320x240Capture.png
 # Compiled and Media files we don't need to push
 ex2/q1/*.ppm
 ex2/*.mp4
+ex2/q4/v4l2/*.ppm
 
 ex2/q2/sobel
+ex2/q3/canny
+ex2/q4/opencv/capture
+ex2/q4/v4l2/capture
+ex2/q4/overlay/overlay
+
+
+
