@@ -40,7 +40,10 @@ static struct {
 using namespace cv;
 using namespace std;
 
-
+/**
+	Read the current time using the posix gettime function, convert that time into a double value of seconds,
+	and return that to the caller.
+*/
 static double getTime(){
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -83,7 +86,6 @@ static Mat simpleSobel(Mat frame, int ksize = 3, double scale = 1.0, double delt
 	
 	@param frame - source frame to perform sobel operation on. Should be already blurred if required.
 
-	
 	@return - the resulting Mat
 */
 static Mat simpleCanny(Mat frame, int minThresh, int ratio = 3, int kernel_size = 3){
@@ -100,13 +102,19 @@ static Mat simpleCanny(Mat frame, int minThresh, int ratio = 3, int kernel_size 
 }
 
 
-
+/**
+	Callback function for when the trackbar slider is updated. I ended up not needing it since this is applied
+	to live video, so when the value is updated, the very next frame will make use of the new value since we 
+	linked the global value to the trackbar when it was created. 
+*/
 static void onTrackbar(int val, void* arg){
 
 }
 
 
-
+/**
+	Main application code
+*/
 int main(int argc, char *argv[]){
 	
 	//Create the capture instance which will open the camera
@@ -116,11 +124,10 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 	
-	//Configure the camera frame dimensions
+	//Configure the camera frame dimensions and other settings to increase the framerate.
 	cap.set(CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
 	cap.set(CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
 	
-	//cap.set(CAP_PROP_BUFFERSIZE, 2);
 	cap.set(CAP_PROP_FOURCC ,VideoWriter::fourcc('M', 'J', 'P', 'G') );
 	cap.set(CAP_PROP_EXPOSURE, 100);
 	cap.set(CAP_PROP_FPS, 90);
@@ -130,7 +137,6 @@ int main(int argc, char *argv[]){
 	//Create our display window
 	namedWindow(WINDOW_NAME);
 	
-
 	
 	//Store the last frame capture time
 	double last;
@@ -175,7 +181,7 @@ int main(int argc, char *argv[]){
 		imshow(WINDOW_NAME, frame);
 		
 
-		//Get the current time, and save time if this frame starts a new set of frames we'll be calculating FPS over.
+		//Get the current time, and save time if this frame starts a new set of frames that we'll be calculating average FPS over.
 		last = getTime();
 		if(!frameCount)
 			first = last;
