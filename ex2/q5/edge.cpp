@@ -14,7 +14,7 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
 #include <iostream>
-#include <chrono>
+#include <time.h>
 
 //Define the image size
 #define IMG_HEIGHT	480
@@ -39,6 +39,13 @@ static struct {
 
 using namespace cv;
 using namespace std;
+
+
+static double getTime(){
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
 
 
 
@@ -126,8 +133,8 @@ int main(int argc, char *argv[]){
 
 	
 	//Store the last frame capture time
-	chrono::time_point<chrono::high_resolution_clock> last;
-	chrono::time_point<chrono::high_resolution_clock>  first;
+	double last;
+	double  first;
 	unsigned long frameCount = 0;
 
 
@@ -169,14 +176,14 @@ int main(int argc, char *argv[]){
 		
 
 		//Get the current time, and save time if this frame starts a new set of frames we'll be calculating FPS over.
-		last = chrono::high_resolution_clock::now();
+		last = getTime();
 		if(!frameCount)
 			first = last;
 		
 		//If it is time to print the frame processing time stats, we'll save the new framerate to overlay on the next frames
 		if(frameCount >= FPS_FRAME_AVG){			
-			std::chrono::duration<double> diff = last - first;
-			state.calcFramerate = frameCount / diff.count();
+			double diff = last - first;
+			state.calcFramerate = frameCount / diff;
 			frameCount = 0;
 		}
 		else

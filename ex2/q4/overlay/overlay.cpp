@@ -18,7 +18,7 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
 #include <iostream>
-#include <chrono>
+#include <time.h>
 
 //Define the image size
 #define IMG_HEIGHT	480
@@ -41,6 +41,11 @@
 #define STAT_PRINT_INTERVAL		10000
 
 
+static double getTime(){
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
 
 
 
@@ -76,11 +81,11 @@ int main(int argc, char *argv[]){
 	//Hold the next time that we will be printing the frame processing time to the console. 
 	//	This will be set following each print so it will always be the time that we wish
 	//	to print next. 
-	auto nextFrameStat = chrono::high_resolution_clock::now() + chrono::milliseconds(STAT_PRINT_INTERVAL);
+	double nextFrameStat = getTime() + STAT_PRINT_INTERVAL/1000.0;
 	
 	//Store the last frame capture time
-	chrono::time_point<chrono::high_resolution_clock> last;
-	chrono::time_point<chrono::high_resolution_clock>  first;
+	double last;
+	double first;
 	unsigned long frameCount = 0;
 #endif
 
@@ -89,7 +94,7 @@ int main(int argc, char *argv[]){
 	while(running){
 #if STAT_PRINT_INTERVAL
 		//Collect the start time so we can calculate the image processing time. 
-		auto start = chrono::high_resolution_clock::now();
+		double start = getTime();
 #endif
 		
 		//Read frame and verify it is valid
@@ -128,7 +133,7 @@ int main(int argc, char *argv[]){
 			imshow(WINDOW_NAME, frame);
 		
 #if STAT_PRINT_INTERVAL
-		last = chrono::high_resolution_clock::now();
+		last = getTime();
 		if(!frameCount)
 			first = last;
 		frameCount++;
@@ -136,13 +141,13 @@ int main(int argc, char *argv[]){
 
 		//If it is time to print the frame processing time stats, we'll print it and upate the nextFrameStat time
 		if(start >= nextFrameStat){
-			std::chrono::duration<double> diff = last - start;
-			cout << "Frame Processing time: " << diff.count() << "s, ";
-			nextFrameStat = start + chrono::milliseconds(STAT_PRINT_INTERVAL);
+			double diff = last - start;
+			cout << "Frame Processing time: " << diff << "s, ";
+			nextFrameStat = start + STAT_PRINT_INTERVAL/1000.0;
 			
 			diff = last - first;
-			cout << "Frame-rate (avg over runtime): " << frameCount/diff.count() << "fps, ";
-			cout << "Total runtime: " << diff.count() << "s" << endl;
+			cout << "Frame-rate (avg over runtime): " << frameCount/diff << "fps, ";
+			cout << "Total runtime: " << diff << "s" << endl;
 		}
 #endif
 		
