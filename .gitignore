@@ -31,7 +31,7 @@
 *.out
 *.app
 
-# The binaries we compiled
+#### Exercise 1 ####
 ex1/face-detection/face_detect
 ex1/sharpen-psf/sharpen
 ex1/simpler-capture-4/brighten
@@ -45,7 +45,7 @@ ex1/simpler-capture-4/videowriter
 ex1/overlay/overlay
 ex1/overlay/320x240Capture.png
 
-# Compiled and Media files we don't need to push
+#### Exercise 2 ####
 ex2/q1/*.ppm
 ex2/*.mp4
 ex2/q4/v4l2/*.ppm
@@ -58,8 +58,13 @@ ex2/q4/v4l2/capture
 ex2/q4/overlay/overlay
 ex2/q5/edge
 
-
+#### Exercise 3 ####
 ex3/q2/lines
 ex3/q3/circles
 ex3/q4/detect
 ex3/q4/frames/
+ex3/q5/convert
+ex3/q5/frames/
+ex3/q5/*.mpeg
+ex3/q6/track
+ex3/q6/frames/
