@@ -1,8 +1,8 @@
 EXEC     = track
 CC       = g++
 
-CFLAGS   = -g3
-LDFLAGS  = -pthread
+CFLAGS   = 
+LDFLAGS  = 
 
 SRC      = $(wildcard *.cpp)
 OBJ      = $(SRC:.cpp=.o)

@@ -386,7 +386,7 @@ cleanup:
 	
 	/////////////////////////////////////////////////////////////////////////////
 	//	Calculate the absolute valud of the difference between this Img and in.
-	int absDiff(Img &in){
+	int diff(Img &in){
 		if(!loaded() || !in.loaded()){
 			cout << "No image loaded" << endl;
 			return -1;
@@ -398,7 +398,8 @@ cleanup:
 		}		
 		
 		for(int i=0;i<size();i++){
-			data[i] = abs(data[i] - in.data[i]);
+			int d = data[i] - in.data[i];
+			data[i] = d < 0 ? 0 : d;
 		}
 		return 0;
 	}

@@ -72,17 +72,17 @@ int main(int argc, char** argv){
 		//Now we'll take the differnce between this frame and the previous one, then we'll do a sobel transform on the diff image
 		if(prev.loaded()){
 			//Perform the diff, the result ends up in prev.
-			prev.absDiff(img);
+			img.diff(prev);
 			
 			//Peform a ~sobel transform to bring out the laser dot. 
 			Img x;
 			Img sobel;
 			
 			int sobelx[] = {-128, 0, 128, -256, 0, 256, -128, 0, 128};
-			prev.convolve(x, sobelx);
+			img.convolve(x, sobelx);
 			
 			int sobely[] = {128, 256, 128, 0, 0, 0, -128, -256, -128};
-			prev.convolve(sobel, sobely);
+			img.convolve(sobel, sobely);
 			
 			sobel.mul(x);			
 			
@@ -121,7 +121,7 @@ int main(int argc, char** argv){
 			cout << ".";
 		cout.flush();
 	
-		prev.copy(img);
+		prev.copy(orig);
 	}
 	
 	cout << "Complete, " << imageIndex << " total images written (found laser object in " << foundCount << " frames)" << endl;
