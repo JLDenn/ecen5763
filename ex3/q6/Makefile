@@ -1,7 +1,7 @@
 EXEC     = track
 CC       = g++
 
-CFLAGS   = 
+CFLAGS   = -g3
 LDFLAGS  = -pthread
 
 SRC      = $(wildcard *.cpp)

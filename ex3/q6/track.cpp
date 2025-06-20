@@ -10,6 +10,10 @@
 #include "track.hpp"
 #include "img.hpp"
 
+#define GHOST_DELAY				10
+#define OBJECT_RED_THRESH		200		//Determined by trial and error, as well as examaning the histogram of several image frames.
+#define OBJECT_MIN_SIZE			2
+
 using namespace std;
 
 
@@ -42,7 +46,12 @@ int main(int argc, char** argv){
 	
 	Img prev;
 	
+	int foundCount = 0;
+	int found = 0;		//This will be used to "time out" the hold of previous frame detections to "cover" the gap frames where
+						// we didn't detect the laser (a simple form of something like a Kalman filter)
+						//	It uses the GHOST_DELAY to hold a previously found spot on for that number of future frames.
 	int frame = 0;
+	obj_t obj = {0};
 	while(1){
 		frame++;
 		
@@ -58,9 +67,8 @@ int main(int argc, char** argv){
 		//orig.save("raw.pgm");
 		
 		
-		obj_t obj = {0};
+		
 		int count = 0;
-
 		//Now we'll take the differnce between this frame and the previous one, then we'll do a sobel transform on the diff image
 		if(prev.loaded()){
 			//Perform the diff, the result ends up in prev.
@@ -78,18 +86,25 @@ int main(int argc, char** argv){
 			
 			sobel.mul(x);			
 			
-			//look for objects that are above the threshold of 200 (determined by trial and error, as well as examaning the histogram of several images. 
-			vector<obj_t> vObj;
-			count = sobel.objects(&vObj, 200, 3);
-			if(count){
-				//Draw cross to indicate where the dot is. 
-				//for(int i=0;i<count;i++){
+			//Look for objects that are above the threshold of OBJECT_RED_THRESH
+			//	However, if no object is found, we'll try 3 more times with lower threshold levels (10 lower each loop)
+			for(int t=0;t<4;t++){
+				vector<obj_t> vObj;
+				count = sobel.objects(&vObj, OBJECT_RED_THRESH - t*10, OBJECT_MIN_SIZE);
+				if(count){
+					//Draw cross to indicate where the dot is. 
 					obj = vObj.at(0);
-					orig.mark(&obj);
-				//}
+					found = GHOST_DELAY;
+					break;
+				}
 			}
-			else if(obj.x || obj.y)
+			
+			if(found){
+				found--;
 				orig.mark(&obj);
+				foundCount++;
+			}
+			
 			
 			//Assemble the name of the output frame, and save the marked frame.
 			char name[32];
@@ -109,7 +124,7 @@ int main(int argc, char** argv){
 		prev.copy(img);
 	}
 	
-	cout << "Complete, " << imageIndex << " total images written" << endl;
+	cout << "Complete, " << imageIndex << " total images written (found laser object in " << foundCount << " frames)" << endl;
 	return 0;
 }
 	

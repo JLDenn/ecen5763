@@ -52,14 +52,18 @@ private:
 		int curx=x, cury=y;
 		int stopx=x;
 		
-		int lastx=-1, lasty=-1;
-		while(lastx != stopx || lasty != maxy){
-			lastx = curx;
-			lasty = cury;
-			
-			for(int d=0;d<8;d++){
+//		cout << "NEW OBJ" << " at " << x << "," << y << endl;
+		
+		int stuckEscape = 0;
+		int lastDir = 0;
+		do{
+			int d = lastDir;
+			do{
 				int newx = curx + dir[d][0];
 				int newy = cury + dir[d][1];
+				
+				//cout << "trying dir " << dir[d][0] << "," << dir[d][1] << endl;
+				
 				if(newx >= 0 && newy >=0 && newx < _width && newy < _height &&
 						getPixel(newx, newy) >= thresh){
 							
@@ -76,19 +80,26 @@ private:
 					}
 					if(cury < miny)
 						miny = cury;
+					
+					lastDir = d ? d-1 : d;
+//					cout << "moving " << dir[d][0] << "," << dir[d][1] << " to " << newx << "," << newy << " | stopx=" << stopx << ", maxy=" << maxy << endl;
 					break;
 				}
-			}
-		}
+				
+				d = (d+1) % 8;
+			}while(d != lastDir);
+			
+		}while(stuckEscape++ < 5000 && (curx != stopx || cury != maxy));
 		
-		
-		if(maxy - miny + 1 >= minSize && maxx - minx + 1 >= minSize){
+		int h = maxy-miny+1;	//+1 counts the number of pixels, not caps as max-min does
+		int w = maxx-minx+1;
+		if(h >= minSize && w >= minSize){
 			obj->x = (maxx - minx)/2 + minx;
 			obj->y = (maxy - miny)/2 + miny;
-			obj->w = maxx - minx+1;
-			obj->h = maxy - miny+1;
+			obj->w = w;
+			obj->h = w;
 			
-			//cout << "object found: w,h: " << obj->w << "," << obj->h << " @ x,y: " << obj->x << "," << obj->y << endl;
+//			cout << "object found: w,h: " << obj->w << "," << obj->h << " @ x,y: " << obj->x << "," << obj->y << endl;
 			return 0;
 		}
 		
@@ -404,7 +415,12 @@ cleanup:
 			for(int i=0;i<_width;i++){
 				if(getPixel(i,j) > thresh){
 					obj_t obj;
-					int res = resolveObj(i,j, thresh, minSize, &obj);
+					
+					//Attempt to resolve the object by edge crawling to find size. 
+					//	We'll give it a lower threshold to "keep" lower intensity levels as edges
+					//	that are lighter than the initial detection level. We'll stay in the object
+					//	when the intensity level is >= 2/3 * detection thresh
+					int res = resolveObj(i,j, thresh * 2 / 3, minSize, &obj);
 					if(!res){
 						bool fresh = true;
 						for(int idx=0;idx<vObj->size();idx++){
