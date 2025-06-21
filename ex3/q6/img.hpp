@@ -427,10 +427,24 @@ cleanup:
 	
 	//////////////////////////////////////////////////////////////////////
 	// Find objects that are brighter than thresh, and at least minSize in x and y
-	int objects(vector<obj_t> *vObj, int thresh, int minSize){
+	int objects(vector<obj_t> *vObj, int thresh, int minSize, obj_t *searchField = NULL){
 		
-		for(int j=0;j<_height;j++){
-			for(int i=0;i<_width;i++){
+		//We'll limit our search field if searchField is provided. This will target our search to the part of the frame we
+		//	expect the object to be in, likely since that is where it was found last frame. 
+		int range[][2] = {{0, _width}, {0, _height}};
+		if(searchField){
+			
+			range[0][0] = searchField->x - searchField->w / 2 >= 0 		? searchField->x - searchField->w / 2: 0;
+			range[0][1] = searchField->x + searchField->w / 2 <= _width ? searchField->x + searchField->w / 2 : _width;
+			
+			range[1][0] = searchField->y - searchField->h / 2 >= 0 		? searchField->y - searchField->h / 2 : 0;
+			range[1][1] = searchField->y + searchField->h / 2 <= _width ? searchField->y + searchField->h / 2 : _width;
+//			cout << "limiting search range to x: " << range[0][0] << "," << range[0][1] << " y: " << range[1][0] << "," << range[1][1] << endl;
+		}
+		
+		
+		for(int j=range[1][0];j<range[1][1];j++){
+			for(int i=range[0][0];i<range[0][1];i++){
 				
 				if(getPixel(i,j) >= thresh){
 					obj_t obj;

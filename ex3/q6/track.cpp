@@ -14,6 +14,9 @@
 #define OBJECT_RED_THRESH		200		//Determined by trial and error, as well as examaning the histogram of several image frames.
 #define OBJECT_MIN_SIZE			2		//Minimum number of pixels in x AND y before considered an object
 
+#define SEARCH_FIELD_SIZE		100		//Size of the area around the previous detection that we'll use in the first pass on a new frame.
+										// This (rightly) assumes the object will more likely be near where it was in the last frame.
+
 using namespace std;
 
 
@@ -51,6 +54,7 @@ int main(int argc, char** argv){
 						//	It uses the GHOST_DELAY to hold a previously found spot on for that number of future frames.
 	obj_t obj;			//Declare the last object found outside the while loop so it can have some persistance for the frames we can't find the object. 
 	
+	obj_t targetSrchField = {.x=0,.y=0,.w = SEARCH_FIELD_SIZE, .h = SEARCH_FIELD_SIZE};
 	while(1){
 		
 		//ACCEPT SECURITY HOLE BY LETTING THE USER PROVIDE THE FORMAT STRING!!!!
@@ -91,12 +95,24 @@ int main(int argc, char** argv){
 			//	However, if no object is found, we'll try 3 more times with lower threshold levels (10 lower each loop)
 			for(int t=0;t<4;t++){
 				vector<obj_t> vObj;
-				count = sobel.objects(&vObj, OBJECT_RED_THRESH - t*10, OBJECT_MIN_SIZE);
+				count = 0;
+				
+				//For the first try (of 4), if the previous frame had a detection, we'll try searching in a reduce field of view
+				//	for a first try since the object will most likely be in that area again. 
+				if(t == 0 && found == GHOST_DELAY-1)
+					count = sobel.objects(&vObj, OBJECT_RED_THRESH - t*10, OBJECT_MIN_SIZE, &targetSrchField);
+				if(!count)
+					count = sobel.objects(&vObj, OBJECT_RED_THRESH - t*10, OBJECT_MIN_SIZE);
+				
 				if(count){
 					//Draw cross to indicate where the dot is. 
 					obj = vObj.at(0);
 					found = GHOST_DELAY;
 					foundCount++;
+					
+					//Get ready for the next frame "quick" search. We'll update the first pass search field for the next frame
+					targetSrchField.x = obj.x;
+					targetSrchField.y = obj.y;
 					break;
 				}
 			}
