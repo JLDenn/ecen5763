@@ -12,7 +12,7 @@
 
 #define GHOST_DELAY				10
 #define OBJECT_RED_THRESH		200		//Determined by trial and error, as well as examaning the histogram of several image frames.
-#define OBJECT_MIN_SIZE			2
+#define OBJECT_MIN_SIZE			2		//Minimum number of pixels in x AND y before considered an object
 
 using namespace std;
 
@@ -22,6 +22,8 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv){
 	
+	cout << "***** Laser Tracking - Justin Denning *****" << endl;
+	
 	//Verify CLI arguments are correct
 	if(argc != 2){
 		cout << "Usage: " << argv[0] << " <image filename format (ie. gray_%04d.pgm)>" << endl;
@@ -29,31 +31,27 @@ int main(int argc, char** argv){
 	}
 	
 
-	cout << "***** Laser Tracking - Justin Denning *****" << endl;
-	
-	//ACCEPT BUFFER SHORTAGE ERROR POSSIBILITY
+	//ACCEPT BUFFER SHORTAGE AS AN ERROR POSSIBILITY (won't overflow though)
 	char image[256];
+	char outputFolder[256];
 	int imageIndex = 0;
 	
 	//Determine the folder that the source image frames are in. We'll be using the same location for the output frames.
-	char outputFolder[256];
 	strncpy(outputFolder, argv[1], sizeof(outputFolder));
 	char *ptr = strrchr(outputFolder, '/');
 	if(ptr)
 		*ptr = '\0';
 	else
-		strcpy(outputFolder, ".");
+		strcpy(outputFolder, "."); 
 	
-	Img prev;
-	
+	Img prev;			//Image class to hold the previous image frame (just before the current one)
 	int foundCount = 0;
 	int found = 0;		//This will be used to "time out" the hold of previous frame detections to "cover" the gap frames where
 						// we didn't detect the laser (a simple form of something like a Kalman filter)
 						//	It uses the GHOST_DELAY to hold a previously found spot on for that number of future frames.
-	int frame = 0;
-	obj_t obj = {0};
+	obj_t obj;			//Declare the last object found outside the while loop so it can have some persistance for the frames we can't find the object. 
+	
 	while(1){
-		frame++;
 		
 		//ACCEPT SECURITY HOLE BY LETTING THE USER PROVIDE THE FORMAT STRING!!!!
 		//Set the path/name of the next image frame we'll be reading in
@@ -63,28 +61,31 @@ int main(int argc, char** argv){
 		if(!img.loaded())
 			break;
 
-		Img orig(img);
-		//orig.save("raw.pgm");
+		Img orig(img);	//Hold on to the original image since the process of doing the diff/sobel transform modifies the img.
 		
-		
-		
-		int count = 0;
 		//Now we'll take the differnce between this frame and the previous one, then we'll do a sobel transform on the diff image
-		if(prev.loaded()){
-			//Perform the diff, the result ends up in prev.
+		int count = 0;
+		if(imageIndex > 1){
+			
+			//Perform the diff, the result ends up in img.
 			img.diff(prev);
+			
+			//Save the unmodified (before we add the cross and box) for use as a diff in the next loop
+			prev.copy(orig);
 			
 			//Peform a ~sobel transform to bring out the laser dot. 
 			Img x;
 			Img sobel;
 			
-			int sobelx[] = {-128, 0, 128, -256, 0, 256, -128, 0, 128};
+			int sobelx[] = {-128, 0, 128, -256, 0, 256, -128, 0, 128};	//Scaled by Img::convolve by 128, so 128=1, 256=2, etc.
 			img.convolve(x, sobelx);
 			
 			int sobely[] = {128, 256, 128, 0, 0, 0, -128, -256, -128};
 			img.convolve(sobel, sobely);
 			
-			sobel.mul(x);			
+			sobel.mul(x);	
+			
+			//We now have an approximate Sobel transform completed (after the initial frame diffs).		
 			
 			//Look for objects that are above the threshold of OBJECT_RED_THRESH
 			//	However, if no object is found, we'll try 3 more times with lower threshold levels (10 lower each loop)
@@ -95,6 +96,7 @@ int main(int argc, char** argv){
 					//Draw cross to indicate where the dot is. 
 					obj = vObj.at(0);
 					found = GHOST_DELAY;
+					foundCount++;
 					break;
 				}
 			}
@@ -102,26 +104,25 @@ int main(int argc, char** argv){
 			if(found){
 				found--;
 				orig.mark(&obj);
-				foundCount++;
 			}
 			
 			
 			//Assemble the name of the output frame, and save the marked frame.
 			char name[32];
-			snprintf(name, sizeof(name), "%s/marked_%04d.pgm", outputFolder, frame);
+			snprintf(name, sizeof(name), "%s/marked_%04d.pgm", outputFolder, imageIndex);
 			orig.save(name);
 		}
+		else	//First frame actions
+			prev.copy(orig);	//Save the unmodified (without cross and box) for use as a diff in the next loop
 		
-		//Print progress details, '.' for every frame, frame number on 100s, and X for any frame that had an object found in it. 
-		if(frame % 100 == 0)
-			cout << frame;
+		//Print progress details, '.' for every frame or frame number on 100s. Use X instead of . for any frame that had an object found in it. 
+		if(imageIndex % 100 == 0)
+			cout << imageIndex;
 		else if(count)
 			cout << "X";
 		else
 			cout << ".";
 		cout.flush();
-	
-		prev.copy(orig);
 	}
 	
 	cout << "Complete, " << imageIndex << " total images written (found laser object in " << foundCount << " frames)" << endl;
