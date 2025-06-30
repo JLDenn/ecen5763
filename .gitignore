@@ -67,3 +67,13 @@ ex3/q5/convert
 ex3/q5/frames/
 ex3/q6/track
 ex3/q6/frames/
+
+#### Exercise 4 ####
+ex4/q2/*.AVI
+ex4/q2/hough
+
+
+#### Final Project ####
+proj/training/neg/
+proj/training/pos/
+proj/training/opencv
