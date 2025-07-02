@@ -1,0 +1,21 @@
+EXEC     = skeletal
+CC       = g++
+
+CFLAGS   = -I/usr/include/opencv4 
+LDFLAGS  = -lpthread
+
+SRC      = $(wildcard *.cpp)
+OBJ      = $(SRC:.cpp=.o)
+
+all: $(EXEC)
+
+${EXEC}: $(OBJ)
+	$(CC) -o $@ $^ `pkg-config --libs opencv4` $(LDFLAGS) 
+
+%.o: %.cpp 
+	$(CC) -o $@ -c $< $(CFLAGS)
+
+.PHONY: clean
+clean:
+	@rm -rf *.o ${EXEC}
+

@@ -71,9 +71,14 @@ ex3/q6/frames/
 #### Exercise 4 ####
 ex4/q2/*.AVI
 ex4/q2/hough
+ex4/q3/skeletal
+ex4/q4/siftDemoV4/
+ex4/q4/pyrupdown/pyrupdown
+
 
 
 #### Final Project ####
+proj/units/chicken_detect
 proj/training/neg/
 proj/training/pos/
 proj/training/opencv
