@@ -22,7 +22,7 @@ echo "Hit ESC when finished"
 mkdir -p detect/frames
 rm -rf detect/frames/*
 make -C detect
-detect/hog -v="$vidFile"
+detect/hog -v="$vidFile" -n
 
 
 
