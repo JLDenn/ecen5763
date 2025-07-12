@@ -89,9 +89,9 @@ ex4/q6/train/annotations/people.txt
 
 
 #### Final Project ####
-proj/training/annotations/sort
-proj/training/annotations/pos/*
-proj/training/annotations/neg/*
+proj/train/annotations/sort
+proj/train/annotations/pos/*
+proj/train/annotations/neg/*
 proj/train/frames/
 proj/train/trainer/train
 
@@ -100,5 +100,6 @@ proj/units/detector/chicken_detect
 proj/units/locate/locate
 proj/units/coord/coord
 proj/units/coord/*.jpg
+proj/defender/defender
 
 
