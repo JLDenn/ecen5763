@@ -74,11 +74,31 @@ ex4/q2/hough
 ex4/q3/skeletal
 ex4/q4/siftDemoV4/
 ex4/q4/pyrupdown/pyrupdown
+ex4/q5/*.mp4
+ex4/q5/hog
+ex4/q5/*.jpg
+ex4/q6/detect/hog
+ex4/q6/detect/frames/
+ex4/q6/train/train
+ex4/q6/train/prep/prep
+ex4/q6/train/annotations/sort
+ex4/q6/train/annotations/pos/
+ex4/q6/train/annotations/neg/
+ex4/q6/train/annotations/people.txt
 
 
 
 #### Final Project ####
-proj/units/chicken_detect
-proj/training/neg/
-proj/training/pos/
-proj/training/opencv
+proj/training/annotations/sort
+proj/training/annotations/pos/*
+proj/training/annotations/neg/*
+proj/train/frames/
+proj/train/trainer/train
+
+
+proj/units/detector/chicken_detect
+proj/units/locate/locate
+proj/units/coord/coord
+proj/units/coord/*.jpg
+
+
