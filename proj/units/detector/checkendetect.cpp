@@ -47,7 +47,7 @@ int main( int argc, const char** argv )
 		exPath = string(argv[0]).substr(0, p);
 	
 	char rel[128];
-	snprintf(rel, sizeof(rel), "%s/../../train/chick.xml", exPath.c_str());
+	snprintf(rel, sizeof(rel), "%s/../../train/chick_on_deck.xml", exPath.c_str());
 	
 	HOGDescriptor hog;
 	hog.load(rel);

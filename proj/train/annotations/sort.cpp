@@ -17,7 +17,7 @@
 using namespace cv;
 using namespace std;
 
-#define OUTPUT_SIZE		128,128
+#define OUTPUT_SIZE		64,64
 
 int main(int argc, char **argv){
 	

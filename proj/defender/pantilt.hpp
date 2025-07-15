@@ -143,4 +143,87 @@ public:
 		return false;
 	}
 	
+	//-----------------------------------------------------
+	//	Perform a full test of the basic functions of the pan & tilt
+	//	Returns 0 on success, 1 on failure
+	int test(){
+	
+		if(!openPort()){
+			cout << "Error opening default serial port" << endl;
+			return 1;
+		}
+		
+		int pan, tilt, periph;
+		if(!getPos(&pan, &tilt, &periph)){
+			cout << "Error getting position information" << endl;
+			return 1;
+		}
+
+		cout << "Current position " << pan << ", " << tilt << ", " << (periph ? "ON" : "OFF") << endl;
+
+		if(!home()){
+			cout << "Error homing" << endl;
+			return 1;
+		}
+		
+		cout << "Waiting 10s..." << endl;
+		usleep(10000000);
+		
+		cout << "Moving to 0, 100" << endl;
+		if(!moveTo(0, 100)){
+			cout << "Error moving to 0,100" << endl;
+			return 1;
+		}
+		
+		cout << "Waiting 4s..." << endl;
+		usleep(4000000);
+		
+		cout << "Moving 100, -200" << endl;
+		if(!move(100, -200)){
+			cout << "Error performing delta move" << endl;
+			return 1;
+		}
+		
+		cout << "Waiting 2s..." << endl;
+		usleep(2000000);
+		
+		cout << "Setting active" << endl;
+		if(!active(1)){
+			cout << "Error setting perminant active" << endl;
+			return 1;
+		}
+		
+		cout << "Waiting 2s..." << endl;
+		usleep(2000000);
+		
+		cout << "Setting inactive" << endl;
+		if(!active(0)){
+			cout << "Error setting perminant inactive" << endl;
+			return 1;
+		}
+		
+		cout << "Waiting 2s..." << endl;
+		usleep(2000000);
+
+		cout << "Setting active for 2 seconds" << endl;
+		if(!active(1, 2000)){
+			cout << "Error setting 2s active" << endl;
+			return 1;
+		}
+		
+		cout << "Waiting 3s..." << endl;
+		usleep(3000000);
+		
+		cout << "trying consecutive moves" << endl;
+		if(!moveTo(200, 200) || !moveTo(-20, -50)){
+			cout << "Error setting one of the two moveTo commands" << endl;
+			return 1;
+		}
+		
+		cout << "All tests complete" << endl;
+		closePort();
+		return 0;
+	}
+
+	
 };

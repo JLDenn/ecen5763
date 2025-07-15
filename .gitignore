@@ -90,10 +90,11 @@ ex4/q6/train/annotations/people.txt
 
 #### Final Project ####
 proj/train/annotations/sort
-proj/train/annotations/pos/*
-proj/train/annotations/neg/*
+proj/train/annotations/pos/
+proj/train/annotations/neg/
 proj/train/frames/
 proj/train/trainer/train
+proj/train/*.mp4
 
 
 proj/units/detector/chicken_detect
