@@ -103,4 +103,6 @@ proj/units/coord/coord
 proj/units/coord/*.jpg
 proj/defender/defender
 
+proj/train/yolo/
+
 

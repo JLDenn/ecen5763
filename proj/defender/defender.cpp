@@ -52,15 +52,12 @@ int findMotion(Mat frame, Mat *avg, vector<vector<Vec2i>> *contours){
 
 	avg->convertTo(temp, CV_8UC1);
 	GaussianBlur(frame, blurred, Size(21, 21), 0);
-	
-	accumulateWeighted(blurred, *avg, 0.5);
-
 		
 	Mat diff, threshFrame;
 	absdiff(blurred, temp, diff);
-	accumulateWeighted(blurred, *avg, 0.5);
+	accumulateWeighted(blurred, *avg, 0.2);
 	
-	threshold( diff, threshFrame, 20, 255, THRESH_BINARY);
+	threshold( diff, threshFrame, 40, 255, THRESH_BINARY);
 	
 	Mat dilateFrame;
 	dilate(threshFrame, dilateFrame, getStructuringElement(MORPH_RECT, Size(3,3)), Point(-1,-1), 20);
@@ -194,7 +191,7 @@ int main(int argc, char *argv[]){
 		
 		//Give the system time to actually render the image to the screen, and check for an escape key press
 		//	which will cause us to quit. 
-		if(waitKey(10) == ESCAPE)
+		if(waitKey(1) == ESCAPE)
 			break;
 	}
 
