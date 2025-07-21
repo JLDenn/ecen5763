@@ -30,6 +30,7 @@ struct {
 	char *video;		//NULL (no -v argument) indicates use camera 
 	int minArea;
 	int motionExpansion;	
+	char* demo;			//Save displayed frames to this location, if !NULL
 }opts = {};
 
 using namespace cv;
@@ -66,7 +67,7 @@ int findMotion(Mat frame, Mat *avg, vector<vector<Vec2i>> *contours){
 	findContours(dilateFrame, rawContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 	
 	for(int i=0;i<rawContours.size();i++){
-		if(contourArea(rawContours[i]) > opts.minArea)
+		if(contourArea(rawContours[i]) >= opts.minArea)
 			contours->push_back(rawContours[i]);
 	}
 
@@ -86,8 +87,10 @@ int main(int argc, char *argv[]){
 	//Defaults
 	opts.minArea = 1000;
 	opts.motionExpansion = 10;
+	opts.demo = NULL;
+	int frameIndex = 1;
 	
-	while( (opt = getopt(argc, argv, "tv:a:e:") ) != -1){
+	while( (opt = getopt(argc, argv, "tv:a:e:d:") ) != -1){
 		switch(opt){
 		case 't':
 			opts.test = true;
@@ -104,9 +107,13 @@ int main(int argc, char *argv[]){
 		case 'e':
 			opts.motionExpansion = atoi(optarg);
 			break;
+			
+		case 'd':
+			opts.demo = optarg;
+			break;
 		
 		default:
-			fprintf(stderr, "Usage: %s \n\t[-t = test run] \n\t[-v video/path = use video file] \n\t[-a minArea = motion threshold] \n\t[-e expansion = distance to expand motion rect]", argv[0]);
+			fprintf(stderr, "Usage: %s \n\t[-t = test run] \n\t[-v video/path = use video file] \n\t[-a minArea = motion threshold] \n\t[-e expansion = distance to expand motion rect]\n", argv[0]);
 			exit(-1);
 		}
 	}
@@ -138,6 +145,7 @@ int main(int argc, char *argv[]){
 		cap.set(CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
 	}
 	
+	
 	//Create our display window
 	namedWindow(WINDOW_NAME);
 	
@@ -159,8 +167,8 @@ int main(int argc, char *argv[]){
 		vector<vector<Vec2i>> contours;
 		int count = findMotion(grayFrame, &avgBackgroundFrame, &contours);
 		
-		if(count)
-			cout << "Found " << count << " contours" << endl;
+		// if(count)
+			// cout << "Found " << count << " contours" << endl;
 		
 		Mat annotatedFrame;
 		clrFrame.copyTo(annotatedFrame);
@@ -188,6 +196,12 @@ int main(int argc, char *argv[]){
 		
 		//Display the image
 		imshow(WINDOW_NAME, annotatedFrame);
+		if(opts.demo){
+			char demofname[128];
+			snprintf(demofname, sizeof(demofname), opts.demo, frameIndex++);	// !!!accepting the security hole of allowing user to provide format string!!!!
+			imwrite(demofname, annotatedFrame);
+		}
+		
 		
 		//Give the system time to actually render the image to the screen, and check for an escape key press
 		//	which will cause us to quit. 

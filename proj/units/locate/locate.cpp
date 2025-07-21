@@ -25,30 +25,30 @@ int main( int argc, const char** argv )
 {
     CommandLineParser parser(argc, argv,
                              "{help h||}"
-                             "{@obj||Image to process}"
+                             //"{@obj||Image to process}"
 							 "{@scene||Scene to search for the image in}");
 
     parser.about( "\nThis program finds the obj image in the scene image\n" );
     
-	if(!parser.check() || argc < 3){
+	if(!parser.check() || argc < 2){
 		parser.printMessage();
 		return 1;
 	}
 
-	Mat iobj = imread(parser.get<string>(0), IMREAD_GRAYSCALE);
-	if(iobj.empty()){
-		cout << "Error opening image at " << parser.get<string>(0) << endl;
-		return 1;
-	}
+	// Mat iobj = imread(parser.get<string>(0), IMREAD_GRAYSCALE);
+	// if(iobj.empty()){
+		// cout << "Error opening image at " << parser.get<string>(0) << endl;
+		// return 1;
+	// }
 	
-	Mat iscene = imread(parser.get<string>(1), IMREAD_GRAYSCALE);
+	Mat iscene = imread(parser.get<string>(0), IMREAD_GRAYSCALE);
 	if(iscene.empty()){
 		cout << "Error opening image at " << parser.get<string>(0) << endl;
 		return 1;
 	}
 	
 	Mat scene, obj;
-	resize(iobj, obj, Size(0,0), 0.25, 0.25);
+	//resize(iobj, obj, Size(0,0), 0.25, 0.25);
 	resize(iscene, scene, Size(0,0), 0.25, 0.25);
 	
 	
