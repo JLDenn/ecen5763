@@ -2,7 +2,7 @@ EXEC     = defender
 CC       = g++
 
 CFLAGS   = -I/usr/include/opencv4 
-LDFLAGS  = 
+LDFLAGS  = -pthread
 
 SRC      = $(wildcard *.cpp)
 OBJ      = $(SRC:.cpp=.o)
@@ -12,7 +12,7 @@ all: $(EXEC)
 ${EXEC}: $(OBJ)
 	$(CC) -o $@ $^ `pkg-config --libs opencv4` $(LDFLAGS) 
 
-%.o: %.cpp pantilt.hpp
+%.o: %.cpp pantilt.hpp object.hpp
 	$(CC) -o $@ -c $< $(CFLAGS)
 
 .PHONY: clean

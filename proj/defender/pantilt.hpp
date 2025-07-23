@@ -14,7 +14,6 @@ class PanTilt {
 private:
 	int serial;
 	std::string rxBuf;
-	bool blocking;
 	
 	//-----------------------------------------------------
 	//	Write command to the serial port. 
@@ -73,7 +72,6 @@ public:
 	//-----------------------------------------------------
 	PanTilt(){
 		serial = INVALID_HANDLE;
-		blocking = false; 
 	}
 	
 	//-----------------------------------------------------
