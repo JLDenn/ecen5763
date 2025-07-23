@@ -19,7 +19,7 @@ private:
 	//-----------------------------------------------------
 	//	Write command to the serial port. 
 	//	This function will append a '\r' character, so the command should not include it.
-	bool sendCmd(const char *cmd){
+	bool sendCmd(const char *cmd, bool waitResp = true){
 		if(serial == INVALID_HANDLE){
 			cout << "Couldn't send command: port not open" << endl;
 			return false;
@@ -33,7 +33,14 @@ private:
 		while(!write(serial, "\r", 1))
 			;
 		
-		return true;
+		
+		if(!waitResp)
+			return true;
+		
+		if(!readResp())
+			return false;
+		
+		return rxBuf == "ok\r";
 	}
 	
 	//-----------------------------------------------------
@@ -122,7 +129,7 @@ public:
 	
 	//-----------------------------------------------------
 	bool getPos(int *pan, int *tilt, int *periph = NULL){
-		if(!sendCmd("g"))
+		if(!sendCmd("g", false))
 			return false;
 		
 		rxBuf.clear();
@@ -166,17 +173,11 @@ public:
 			return 1;
 		}
 		
-		cout << "Waiting 10s..." << endl;
-		usleep(10000000);
-		
 		cout << "Moving to 0, 100" << endl;
 		if(!moveTo(0, 100)){
 			cout << "Error moving to 0,100" << endl;
 			return 1;
 		}
-		
-		cout << "Waiting 4s..." << endl;
-		usleep(4000000);
 		
 		cout << "Moving 100, -200" << endl;
 		if(!move(100, -200)){
@@ -184,8 +185,6 @@ public:
 			return 1;
 		}
 		
-		cout << "Waiting 2s..." << endl;
-		usleep(2000000);
 		
 		cout << "Setting active" << endl;
 		if(!active(1)){
