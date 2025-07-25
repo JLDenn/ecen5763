@@ -31,11 +31,13 @@
 
 struct {
 	bool test;
-	char *video;		//NULL (no -v argument) indicates use camera 
+	const char *video;		//NULL (no -v argument) indicates use camera 
 	int minArea;
 	int motionExpansion;	
-	char* demo;			//Save displayed frames to this location, if !NULL
-}opts = {};
+	const char *demo;				//Save displayed frames to this location, if !NULL
+	const char *mfile;		//Location of the M file to use for coordinate translations
+	bool verbose;			//Enables verbose commenting
+}opts = {0};
 
 using namespace cv;
 using namespace std;
@@ -43,28 +45,39 @@ using namespace std;
 //Targetting thread communication
 static target_t targetMem;
 
+static Mat M;
+
 
 #define DECK_HEIGHT			167						//Inches S-N
-#define DECK_WIDTH			305						//Inches W-E
+#define DECK_WIDTH			290						//Inches W-E (visible)
 #define PIXEL_TO_INCH		(600.0/DECK_HEIGHT)		//AFTER point has been warped to correct for perspective
+#define DECK_FRAME_BORDER	50
 
-static Mat generateWarp(){
-	vector<Point2f> mappedCoords(4), srcCoords(4);
-	
-	//Resultant coordinates for the corners of the deck (and BBQ) to provide 1300 pixels / 167 inches (7.784 px/in)
-	mappedCoords[0] = Point2f(50,50);		//NW
-	mappedCoords[1] = Point2f(2424,237);	//NE
-	mappedCoords[2] = Point2f(2307,1000);	//SE (using BBQ NE corner)
-	mappedCoords[3] = Point2f(50,1350);		//SW
-	
-	//Points on the pre-corrected image that line up with the features as indicated
-	srcCoords[0] = Point2f(1129,1047);		//NW deck corner
-	srcCoords[1] = Point2f(2852,1069);		//NE deck corner
-	srcCoords[2] = Point2f(2643,1959);		//NE BBQ corner (absolute corner)
-	srcCoords[3] = Point2f(501,1930);		//SW deck corner
+#define PT_LOC_X			305
+#define PT_LOC_Y			155
 
-	
-	return getPerspectiveTransform(srcCoords, mappedCoords);
+//-------------------------------------------------------------------
+//Read the M matrix from the m.mat file (or overridden path)
+static Mat readWarp(){
+
+	//Read in the M file that we'll use for coordinate translations
+	FILE *f = fopen(opts.mfile, "r");
+	if(!f){
+		cout << "Unable to open M file to reading read in the coordinate translation matrix (" << opts.mfile << ")" << endl;
+		exit(-1);
+	}
+
+	//Read in the file contents to M
+	static double M_raw[3][3] = {{1.0,0.0,0.0}, {0.0,1.0,0.0}, {0.0,0.0,1.0}};	//Must be static since Mat data must be valid upon return.
+	for(int i=0;i<3;i++){
+		if(3 != fscanf(f, "%lf, %lf, %lf", &M_raw[i][0],&M_raw[i][1],&M_raw[i][2])){
+			cout << "Error reading values from M file (" << opts.mfile << ")" << endl;
+			exit(-1);
+		}
+	}
+	fclose(f);
+
+	return Mat(3,3, CV_64F, M_raw);
 }
 
 //-------------------------------------------------------------------
@@ -78,16 +91,35 @@ static Point2f pointWarp(Point2f p, Mat M){
 	pt.x = pd.at<double>(0) / pd.at<double>(2);
 	pt.y = pd.at<double>(1) / pd.at<double>(2);	
 	
-	pt.x -= 50;
+	pt.x -= DECK_FRAME_BORDER;
 	pt.x /= PIXEL_TO_INCH;
-	pt.y -= 50;
+	pt.y -= DECK_FRAME_BORDER;
 	pt.y /= PIXEL_TO_INCH;
 	
 	return pt;
 }
 
+//-------------------------------------------------------------------
+//Convert a deck coordinate (in inches) to pre-warped image pixel coordinates
+static Point2f pointUnWarp(Point2f p, Mat M){
+	p.x *= PIXEL_TO_INCH;
+	p.x += DECK_FRAME_BORDER;
+	p.y *= PIXEL_TO_INCH;
+	p.y += DECK_FRAME_BORDER;
+	
+	double d[] = {p.x, p.y, 1.0};
+	Mat pm(3, 1, CV_64F, d);
+	Mat pd = M.inv() * pm;		
+
+	Point2f pt;
+	pt.x = pd.at<double>(0) / pd.at<double>(2);
+	pt.y = pd.at<double>(1) / pd.at<double>(2);		
+	return pt;
+}
+
 //--------------------------------------------------------------------
 //Check if point is actually on the deck (provide in inches from NW corner) 
+// p - in inches from NW corner of the deck
 static bool validDeckPoint(Point2f p){
 	if(p.x < 0 || p.x > DECK_WIDTH - 50)		//Can't shoot right most 50 inches of the deck.
 		return false;
@@ -103,7 +135,7 @@ static bool validDeckPoint(Point2f p){
 //Convert an x,y location from NW corner of the deck to Pan & Tilt angles
 static void targetPoint(Point2f p, Vec2f *v){
 	
-	Point2f D0(305, 155);		//origin of the deck (where the gun is)
+	Point2f D0(PT_LOC_X, PT_LOC_Y);		//origin of the deck (where the gun is)
 	double theta_offset	= 10.0;	//Offset for the pan direction (due to mounting) indicates aligned with deck, degrees
 	double phi_mount = -30.0;		//Mounting angle (in tilt) of the pan & tilt (degrees)
 	double hight = 144.0;			//gun mount hight (above the deck, inches)
@@ -111,21 +143,27 @@ static void targetPoint(Point2f p, Vec2f *v){
 	Point2f shot = D0 - p;
 	
 	double theta = atan(shot.y / shot.x) * 180.0 / 3.14159 + theta_offset;
-	cout << "theta=" << theta << endl;
+	
+	if(opts.verbose)
+		cout << "theta=" << theta << endl;
 	
 	//Since the pan&tilt is mounted at an angle (not flat), as we move in X(pan) we also change the tilt angle.
 	//	This is the component in pan based on the x(pan) position. 
 	double x_comp = cos((theta - theta_offset) * 3.14159 / 180.0) * phi_mount;
-	cout << "tilt component from pan=" << x_comp << endl;
+	if(opts.verbose)
+		cout << "tilt component from pan=" << x_comp << endl;
 	
 	double range = sqrt(shot.y*shot.y + shot.x*shot.x);
-	cout << "range=" << range << endl;
+	if(opts.verbose)
+		cout << "range=" << range << endl;
 	
 	double drop_cor = pow(2.71828182845904, 0.01 * range) - 1; 
-	cout << "drop_cor=" << drop_cor << endl;
+	if(opts.verbose)
+		cout << "drop_cor=" << drop_cor << endl;
 	
 	double phi = -atan(hight / range) * 180.0/3.14159;
-	cout << "phi raw=" << phi << endl;
+	if(opts.verbose)
+		cout << "phi raw=" << phi << endl;
 
 	//Combine the raw phi and the drop and pan-component corrections
 	phi -= x_comp;
@@ -139,12 +177,10 @@ static void targetPoint(Point2f p, Vec2f *v){
 
 
 
-
+#define IDLE_WAIT	5000
 //---------------------------------------------------------------------
 //Thread that controls the firing of the squirt gun and interface with the P&T
 void * targetingThread(void *arg){
-	
-	return NULL;
 
 	target_t *target = (target_t*) arg;
 	PanTilt pt;
@@ -154,7 +190,7 @@ void * targetingThread(void *arg){
 
 	pt.home();
 	
-	
+	long idle = 0;
 	while(target->running){
 		
 		if(target->engage){
@@ -165,8 +201,12 @@ void * targetingThread(void *arg){
 			pt.active(true, 1000);
 			
 			target->engage = false;
+			idle = IDLE_WAIT;
 		}
-		
+		else if(--idle == 0){
+			pt.moveTo(0,0);
+		}
+
 		usleep(1000);
 	}
 	
@@ -225,6 +265,17 @@ static uint64_t curTime(){
 }
 
 
+//---------------------------------------------------------------------
+void onClick(int action, int x, int y, int, void*){
+	if(action == EVENT_LBUTTONDOWN){
+		if(!targetMem.engage){
+			targetMem.targetLocation = pointWarp(Point2f(x,y), M);
+			targetMem.engage = true;
+		}
+	}
+}
+
+
 int main(int argc, char *argv[]){
 	
 	//------------------------------------------------------------------
@@ -234,9 +285,10 @@ int main(int argc, char *argv[]){
 	opts.minArea = 1000;
 	opts.motionExpansion = 10;
 	opts.demo = NULL;
+	opts.mfile = "m.mat";
 	int frameIndex = 1;
 	
-	while( (opt = getopt(argc, argv, "tv:a:e:d:") ) != -1){
+	while( (opt = getopt(argc, argv, "htv:a:e:d:") ) != -1){
 		switch(opt){
 		case 't':
 			opts.test = true;
@@ -244,6 +296,14 @@ int main(int argc, char *argv[]){
 		case 'v':
 			opts.video = optarg;
 			cout << "Using " << opts.video << endl;
+			break;
+		case 'V':
+			opts.verbose = true;
+			break;
+			
+		case 'm':
+			opts.mfile = optarg;
+			cout << "Overriding M file location: " << opts.mfile << endl;
 			break;
 			
 		case 'a':
@@ -258,8 +318,9 @@ int main(int argc, char *argv[]){
 			opts.demo = optarg;
 			break;
 		
+		case 'h':
 		default:
-			fprintf(stderr, "Usage: %s \n\t[-t = test run] \n\t[-v video/path = use video file] \n\t[-a minArea = motion threshold] \n\t[-e expansion = distance to expand motion rect]\n", argv[0]);
+			fprintf(stderr, "Usage: %s \n\t[-t = test run] \n\t[-v <video/path> = use video file] \n\t[-a <minArea> = motion threshold (default: 1000)] \n\t[-e <expansion> = distance to expand motion rect]\n\t[-m <mfile/loc> = override m.mat file location]\n\t[-d <fname%%04d.jpg> = enable frame saving]\n\t[-V = verbose output]\n", argv[0]);
 			exit(-1);
 		}
 	}
@@ -268,7 +329,6 @@ int main(int argc, char *argv[]){
 	
 	
 	//Instantiate the pan & tilt object (and run tests is directed)
-	vector<Object> objs(MAX_TRACKED_OBJS);
 	if(opts.test){
 		Object obj;
 		if(obj.test())
@@ -277,6 +337,9 @@ int main(int argc, char *argv[]){
 		PanTilt pt;
 		if(pt.test())
 			exit(-1);
+		
+		cout << "Object and P/T tests complete" << endl;
+		return 0;
 	}
 	
 
@@ -297,6 +360,8 @@ int main(int argc, char *argv[]){
 		cap.set(CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
 		cap.set(CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
 	}
+
+	
 	
 	
 	//Create thread that will interface with the squirtgun/pan&tilt
@@ -305,12 +370,14 @@ int main(int argc, char *argv[]){
 	targetMem.running = true;
 	pthread_create(&targetThreadID, NULL, targetingThread, (void*) &targetMem);
 
+	M = readWarp();
 
-	Mat M = generateWarp();
 	
 	//Create our display window
 	namedWindow(WINDOW_NAME);
+	setMouseCallback(WINDOW_NAME, onClick);
 	
+	vector<Object> objs(MAX_TRACKED_OBJS);
 	
 	Mat avgBackgroundFrame;
 	Mat clrFrame;
@@ -322,8 +389,7 @@ int main(int argc, char *argv[]){
 			cout << "Error reading frame" << endl;
 			break;
 		}
-		
-		
+
 		
 		Mat grayFrame;
 		cvtColor(clrFrame, grayFrame, COLOR_BGR2GRAY);
@@ -331,8 +397,9 @@ int main(int argc, char *argv[]){
 		vector<vector<Vec2i>> contours;
 		int count = findMotion(grayFrame, &avgBackgroundFrame, &contours);
 		
-		// if(count)
-			// cout << "Found " << count << " contours" << endl;
+		
+		if(opts.verbose && count)
+			cout << "Found " << count << " contours" << endl;
 		
 		Mat annotatedFrame;
 		clrFrame.copyTo(annotatedFrame);
@@ -357,34 +424,36 @@ int main(int argc, char *argv[]){
 			//imshow("ROI", motionSubFrame);
 
 			Point2f p_warp = pointWarp(p, M);
-			if(!validDeckPoint(p_warp))
+			if(!validDeckPoint(p_warp)){
+				if(opts.verbose)
+					cout << "Point outside valid range (" << p_warp.x << "," << p_warp.y << ")" << endl;
 				continue;
+			}
 
-			int j=0;
+			int j;
 			int avail = -1;
-			for(;j<MAX_TRACKED_OBJS;j++){
-				cout << "loop " << j << endl;
-				
-				if(objs[i].checkLoc(p_warp)){
-					cout << "checked" << endl;
-					objs[i].newDetect(p_warp);
-					cout << "added" << endl;
-					if(!targetMem.engage && objs[i].fireSolution()){
-						cout << "idle and fireSoln ready" << endl;
+			for(j=0;j<MAX_TRACKED_OBJS;j++){
+				if(objs[j].checkLoc(p_warp)){
+					objs[j].newDetect(p_warp);
+					//cout << "added to obj " << j << " (" << p_warp.x << "," << p_warp.y << ")" << endl;
+					if(!targetMem.engage && objs[j].fireSolution()){
+						//cout << "idle and fireSoln ready" << endl;
 						
-						targetMem.targetLocation = objs[i].getShotLoc(curTime() + 1000);	//1 seconds in the future
+						targetMem.targetLocation = objs[j].getShotLoc(curTime() + 1000);	//1 seconds in the future
 						cout << "Shooting at " << targetMem.targetLocation.x << "," << targetMem.targetLocation.y << endl;
 						
 						targetMem.engage = true;
-						objs[i].flush();
+						objs[j].flush();
 					}
 					break;
 				}
-				else if(!objs[i].active())
-					avail = i;
+				else if(!objs[j].active())
+					avail = j;
 				else{
-					if(objs[i].flush(4000))	//Flush any objects where the last motion is 4 seconds old
-						avail = i; 
+					if(objs[j].flush(4000)){	//Flush any objects where the last motion is 4 seconds old
+						cout << "Previous obj " << j << " now availble" << endl;
+						avail = j; 
+					}
 				}
 			}
 			
@@ -395,7 +464,12 @@ int main(int argc, char *argv[]){
 
 		}
 	
-		
+		if(targetMem.engage){
+			Point2f p_unwarp = pointUnWarp(targetMem.targetLocation, M);
+			circle(annotatedFrame, p_unwarp, 20, Scalar(255,0,0), 5);
+			line(annotatedFrame, Point2f(p_unwarp.x-25, p_unwarp.y), Point2f(p_unwarp.x+25, p_unwarp.y), Scalar(255,0,0), 3);
+			line(annotatedFrame, Point2f(p_unwarp.x, p_unwarp.y-25), Point2f(p_unwarp.x, p_unwarp.y+25), Scalar(255,0,0), 3);
+		}
 		
 		//Display the image
 		imshow(WINDOW_NAME, annotatedFrame);

@@ -104,5 +104,5 @@ proj/units/coord/*.jpg
 proj/defender/defender
 
 proj/train/yolo/
-
+proj/units/fisheye/fisheye
 

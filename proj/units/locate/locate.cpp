@@ -13,7 +13,13 @@
 using namespace std;
 using namespace cv;
 
+#define DECK_HEIGHT			167
+#define DECK_WIDTH			290
+#define PIXELS_TO_INCH		(600.0/DECK_HEIGHT)
+#define OBJ_BORDER_SIZE		50
 
+vector<Point2f> clicks;
+bool processClicks = false;
 
 static bool comp(DMatch a, DMatch b){
 	return a.distance < b.distance;
@@ -31,6 +37,7 @@ static void mapPoint(Point2f p, Point2f *pt, Mat M){
 }
 
 //-----------------------------------------------------------------------------------------------------------
+/**
 static void targetPoint(Point2f p, Vec2f *v){
 	
 	Point2f D0(305, 155);		//origin of the deck (where the gun is)
@@ -66,6 +73,7 @@ static void targetPoint(Point2f p, Vec2f *v){
 	(*v)[1] = phi;		//tilt
 }
 
+
 //-----------------------------------------------------------------------------------------------------------
 void mouse(int action, int xp, int yp, int, void *frame){
 	if(action == EVENT_LBUTTONDOWN){
@@ -83,133 +91,152 @@ void mouse(int action, int xp, int yp, int, void *frame){
 		targetPoint(Point2f(x,y), &v);
 		cout << "pan= " << v[0] << "°, tilt= " << v[1] << "° to hit target at " << x << "," << y << endl;	
 	}
-	
 }
+**/
+
+static const char *prompts[] = {
+	"First click on the top left (NW) corner of the deck",
+	"Now click on the first angled corner to the right of the NW corner",
+	"Click on the 2nd angled corner (the concave one) to the right of that",
+	"Click on the NE corner of the deck",
+	"Click on the SE corner of the deck (next to the house wall)",
+	"Click on the SW corner of the deck (next to the wall again)",
+	};
+
+
+void cornerClick(int action, int x, int y, int, void *frame){
+	if(action == EVENT_LBUTTONDOWN){
+		if(!processClicks){
+			Mat *scene = (Mat*)frame;
+			circle(*scene, Point(x, y), 5, Scalar(0,0,0), 8); 
+			imshow("raw", *scene);
+			
+			clicks.push_back(Point2f(x,y));
+			if(clicks.size() < 6){
+				cout << prompts[clicks.size()] << endl;
+				return;
+			}
+			
+
+			processClicks = true;
+		}
+	}
+}
+
 
 /** @function main */
 int main( int argc, const char** argv )
 {
     CommandLineParser parser(argc, argv,
                              "{help h||}"
-                             //"{@obj||Image to process}"
-							 "{@scene||Scene to search for the image in}"
-							 "{p||Point to shoot (at click point)}");
+							 "{@image||Image to apply perspective correction to}"
+							 "{@m||Set file to store new M in, and enable click to warp}"
+							 "{c||Enable creation of new M file}");
 
-    parser.about( "\nThis program finds the obj image in the scene image\n" );
+    parser.about( "\nThis program displays image correction, and allows click-on-corners to generate M (-p option)\n" );
     
-	if(!parser.check() || argc < 2){
+	if(!parser.check() || argc < 3){
 		parser.printMessage();
-		return 1;
+		return -1;
 	}
 
-	// Mat iobj = imread(parser.get<string>(0), IMREAD_GRAYSCALE);
-	// if(iobj.empty()){
-		// cout << "Error opening image at " << parser.get<string>(0) << endl;
-		// return 1;
-	// }
 	
-	Mat scene = imread(parser.get<string>(0), IMREAD_GRAYSCALE);
+	Mat scene = imread(parser.get<string>(0));
 	if(scene.empty()){
 		cout << "Error opening image at " << parser.get<string>(0) << endl;
-		return 1;
+		return -1;
 	}
 	
-	//Mat scene, obj;
-	//resize(iobj, obj, Size(0,0), 0.25, 0.25);
-	//resize(iscene, scene, Size(0,0), 0.25, 0.25);
-	
-	
-	// Ptr<FeatureDetector> detector = ORB::create(20000);
-	// Ptr<DescriptorExtractor> descriptor = ORB::create();
-
-	// Ptr<BFMatcher> matcher  = BFMatcher::create(NORM_HAMMING , true);
-
-	// vector<KeyPoint> kptsObj, kptsScene;
-	// detector->detect(obj, kptsObj );
-	// detector->detect(scene, kptsScene);
-	
-	// Mat descrObj, descrScene;
-	// descriptor->compute(obj, kptsObj, descrObj);
-	// descriptor->compute(scene, kptsScene, descrScene);
 
 	
-	// vector<DMatch> matches;
-	// matcher->match(descrObj, descrScene, matches);
+	double M_raw[3][3] = {{1.0,0.0,0.0}, {0.0,1.0,0.0}, {0.0,0.0,1.0}};
 	
-	
-	// sort(matches.begin(), matches.end(), comp);
-	
-	// vector<Point2f> objPts, scenePts;
-	// for(int i=0;i<matches.size();i++){
-		// Point2f kpo = kptsObj[matches[i].queryIdx].pt;
-		// Point2f kps = kptsScene[matches[i].trainIdx].pt;
+	//We'll be creating the M output file
+	if(!parser.has("c")){
+		FILE *f = fopen(parser.get<string>(1).c_str(), "r");
+		if(!f){
+			cout << "Unable to open M file for reading (" << parser.get<string>(1) << "). To create a new M file, use -c option" << endl;
+			return -1;
+		}
+		else{
+			//Read in the file contents to M
+			for(int i=0;i<3;i++){
+				if(3 != fscanf(f, "%lf, %lf, %lf", &M_raw[i][0],&M_raw[i][1],&M_raw[i][2])){
+					cout << "Error reading M file (" << parser.get<string>(1) << ")" << endl;
+					return -1;
+				}
+			}
+			fclose(f);
+		}
+	}
 		
-		// objPts.push_back(kpo);
-		// scenePts.push_back(kps);
-	// }
 		
-	
-	// Mat mask;
-	// Mat transform = findHomography(objPts, scenePts, mask);
-//	cout << "transform= " << transform << endl;
-
-	
-	vector<Point2f> mappedCoords(4), srcCoords(4);
-	// for(int i=0,c=0;i<matches.size() && c<4;i++){
-		// if(mask.at<uchar>(i) == 1){
-			// usedObjPts[c] = objPts[i];
-			// usedScenePts[c] = scenePts[i];
-			// c++;
-		// }
-	// }
-	
-	// namedWindow("fit");
-	
-	//Resultant coordinates for the corners of the deck (and BBQ) to provide 1300 pixels / 167 inches (7.784 px/in)
-	mappedCoords[0] = Point2f(50,50);		//NW
-	mappedCoords[1] = Point2f(2424,237);	//NE
-	mappedCoords[2] = Point2f(2307,1000);	//SE (using BBQ NE corner)
-	mappedCoords[3] = Point2f(50,1350);		//SW
-	
-	//Points on the pre-corrected image that line up with the features as indicated
-	srcCoords[0] = Point2f(1129,1047);		//NW deck corner
-	srcCoords[1] = Point2f(2852,1069);		//NE deck corner
-	srcCoords[2] = Point2f(2643,1959);		//NE BBQ corner (absolute corner)
-	srcCoords[3] = Point2f(501,1930);		//SW deck corner
-
-	
-	Mat M = getPerspectiveTransform(srcCoords, mappedCoords);
-	
+	Mat M = Mat(3,3,CV_64F,M_raw);
 	Mat fit;
-	warpPerspective(scene, fit, M, Size(mappedCoords[1].x+50, mappedCoords[3].y+50));
-	
-	
-	for(int i=0;i<4;i++){
-		Point2f pt;
-		mapPoint(srcCoords[i], &pt, M);
 
-		circle(fit, Point((int) pt.x, (int) pt.y), 5, Scalar(0,0,0), 4);
-	}
+	//Are we expected to create a new M file?
+	if(parser.has("c")){
+		namedWindow("raw");
+		setMouseCallback("raw", cornerClick, &scene);	
 
-	
-	
-	
-	if(parser.has("p")){
-		namedWindow("fit");
-		setMouseCallback("fit", mouse, &fit);
+		cout << prompts[0] << endl;
+		imshow("raw", scene);	
+		
+		while(!processClicks){
+			if(waitKey(10) == 27){
+				cout << "Aborting... (M file not modified)" << endl;
+				return 0;
+			}
+		}
+		
+		setMouseCallback("raw", NULL);
+		
+		//We should have all 6 click locations now, So we'll calculate the new M
+		vector<Point2f> mappedCoords(4), srcCoords(4);
+		srcCoords[0] = clicks[0];
+		srcCoords[1] = clicks[3];
+		srcCoords[2] = clicks[4];
+		srcCoords[3] = clicks[5];
+		
+		mappedCoords[0] = Point2f(OBJ_BORDER_SIZE,OBJ_BORDER_SIZE);		//NW
+		mappedCoords[1] = Point2f(OBJ_BORDER_SIZE + DECK_WIDTH * PIXELS_TO_INCH, OBJ_BORDER_SIZE + 24 * PIXELS_TO_INCH);	//NE
+		mappedCoords[2] = Point2f(OBJ_BORDER_SIZE + DECK_WIDTH * PIXELS_TO_INCH, OBJ_BORDER_SIZE + DECK_HEIGHT * PIXELS_TO_INCH);	//SE 
+		mappedCoords[3] = Point2f(OBJ_BORDER_SIZE, OBJ_BORDER_SIZE + DECK_HEIGHT * PIXELS_TO_INCH);		//SW	
+
+		M = getPerspectiveTransform(srcCoords, mappedCoords);		
+		
+		warpPerspective(scene, fit, M, Size(OBJ_BORDER_SIZE*2 + DECK_WIDTH*PIXELS_TO_INCH, OBJ_BORDER_SIZE*2 + DECK_HEIGHT*PIXELS_TO_INCH));
+		
+		for(int i=0;i<4;i++){
+			Point2f pt;
+			mapPoint(srcCoords[i], &pt, M);
+
+			circle(fit, Point((int) pt.x, (int) pt.y), 3, Scalar(255,0,0), 2);
+		}
+
+		FILE *f = fopen(parser.get<string>(1).c_str(), "w");
+		if(!f){
+			cout << "Error openning M file for writing (" << parser.get<string>(1) << endl;
+			return -1;
+		}
+		
+		for(int i=0;i<3;i++)
+			fprintf(f, "%lf, %lf, %lf\n", 
+					M.at<double>(i,0), M.at<double>(i,1),M.at<double>(i,2));
+		
+		fclose(f);
+		cout << "New M file saved: " << endl;
+		cout << M << endl;
+	}
+	else {	//Demo the read in correction
+		imshow("raw", scene);
+		cout << "Warping with: " << endl;
+		cout << M << endl;
+		warpPerspective(scene, fit, M, Size(OBJ_BORDER_SIZE*2 + DECK_WIDTH*PIXELS_TO_INCH, OBJ_BORDER_SIZE*2 + DECK_HEIGHT*PIXELS_TO_INCH));
 	}
 	
-	
-	//imshow("raw", scene);
 	imshow("fit", fit);
 	
-	
-	// Mat match;
-	// vector<DMatch> best(matches.begin(), matches.begin()+5);
-	// drawMatches(obj, kptsObj, scene, kptsScene, best, match);
-	// imshow("matches", match);
-	
-
 	waitKey();
     return 0;
 }
