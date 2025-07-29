@@ -136,7 +136,7 @@ static bool validDeckPoint(Point2f p){
 static void targetPoint(Point2f p, Vec2f *v){
 	
 	Point2f D0(PT_LOC_X, PT_LOC_Y);		//origin of the deck (where the gun is)
-	double theta_offset	= 10.0;	//Offset for the pan direction (due to mounting) indicates aligned with deck, degrees
+	double theta_offset	= 0.0;	//Offset for the pan direction (due to mounting) indicates aligned with deck, degrees
 	double phi_mount = -30.0;		//Mounting angle (in tilt) of the pan & tilt (degrees)
 	double hight = 144.0;			//gun mount hight (above the deck, inches)
 	
@@ -152,7 +152,12 @@ static void targetPoint(Point2f p, Vec2f *v){
 	double x_comp = cos((theta - theta_offset) * 3.14159 / 180.0) * phi_mount;
 	if(opts.verbose)
 		cout << "tilt component from pan=" << x_comp << endl;
-	
+
+	//This is the scale we'll need to apply back to the pan after we know the tile adjustment
+	double y_comp = sin((theta - theta_offset) * 3.14159 / 180.0);
+	if(opts.verbose)
+		cout << "y_comp for back correction to pan=" << y_comp << endl;
+
 	double range = sqrt(shot.y*shot.y + shot.x*shot.x);
 	if(opts.verbose)
 		cout << "range=" << range << endl;
@@ -169,6 +174,8 @@ static void targetPoint(Point2f p, Vec2f *v){
 	phi -= x_comp;
 	phi += drop_cor;
 	
+	theta += phi * y_comp/2;
+
 	//Return the calculated angles
 	(*v)[0] = theta;	//pan
 	(*v)[1] = phi;		//tilt
@@ -197,8 +204,17 @@ void * targetingThread(void *arg){
 			
 			Vec2f v;
 			targetPoint(target->targetLocation, &v);
+
+			if(opts.verbose){
+				Point2f p_unwarp = pointUnWarp(targetMem.targetLocation, M);
+				cout << "Target at pixel: " << (p_unwarp.x + DECK_FRAME_BORDER) << "," << (p_unwarp.y + DECK_FRAME_BORDER) << endl;
+				cout << "Shooting at: " << target->targetLocation.x << "," << target->targetLocation.y << " (inches from NW corner)" << endl;
+				cout << "Fireing solution: " << v[0] << "," << v[1] << " deg" << endl;
+			}
+
 			pt.moveTo((int)(v[0]*10), (int)(v[1]*10));
 			pt.active(true, 1000);
+			
 			
 			target->engage = false;
 			idle = IDLE_WAIT;
@@ -288,7 +304,7 @@ int main(int argc, char *argv[]){
 	opts.mfile = "m.mat";
 	int frameIndex = 1;
 	
-	while( (opt = getopt(argc, argv, "htv:a:e:d:") ) != -1){
+	while( (opt = getopt(argc, argv, "Vhtv:a:e:d:") ) != -1){
 		switch(opt){
 		case 't':
 			opts.test = true;
@@ -371,8 +387,9 @@ int main(int argc, char *argv[]){
 	pthread_create(&targetThreadID, NULL, targetingThread, (void*) &targetMem);
 
 	M = readWarp();
-
 	
+	struct timespec ts = {0};
+
 	//Create our display window
 	namedWindow(WINDOW_NAME);
 	setMouseCallback(WINDOW_NAME, onClick);
@@ -383,6 +400,11 @@ int main(int argc, char *argv[]){
 	Mat clrFrame;
 	
 	while(1){
+		struct timespec ts_e;
+		clock_gettime(CLOCK_MONOTONIC, &ts_e);
+		double dt = ((double)ts_e.tv_sec + ts_e.tv_nsec/1000000000.0) -  ((double)ts.tv_sec + ts.tv_nsec/1000000000.0);
+		ts = ts_e;
+		
 		//Read frame and verify it is valid
 		cap >> clrFrame;
 		if(clrFrame.empty()){
@@ -425,8 +447,8 @@ int main(int argc, char *argv[]){
 
 			Point2f p_warp = pointWarp(p, M);
 			if(!validDeckPoint(p_warp)){
-				if(opts.verbose)
-					cout << "Point outside valid range (" << p_warp.x << "," << p_warp.y << ")" << endl;
+				// if(opts.verbose)
+				// 	cout << "Point outside valid range (" << p_warp.x << "," << p_warp.y << ")" << endl;
 				continue;
 			}
 
@@ -440,8 +462,6 @@ int main(int argc, char *argv[]){
 						//cout << "idle and fireSoln ready" << endl;
 						
 						targetMem.targetLocation = objs[j].getShotLoc(curTime() + 1000);	//1 seconds in the future
-						cout << "Shooting at " << targetMem.targetLocation.x << "," << targetMem.targetLocation.y << endl;
-						
 						targetMem.engage = true;
 						objs[j].flush();
 					}
@@ -451,14 +471,16 @@ int main(int argc, char *argv[]){
 					avail = j;
 				else{
 					if(objs[j].flush(4000)){	//Flush any objects where the last motion is 4 seconds old
-						cout << "Previous obj " << j << " now availble" << endl;
+						if(opts.verbose)
+							cout << "Previous obj " << j << " now availble" << endl;
 						avail = j; 
 					}
 				}
 			}
 			
 			if(j == MAX_TRACKED_OBJS && avail >= 0){
-				cout << "added to new object: " << avail << " -- " << p_warp.x << "," << p_warp.y << endl;
+				if(opts.verbose)
+					cout << "added to new object: " << avail << " -- " << p_warp.x << "," << p_warp.y << endl;
 				objs[avail].newDetect(p_warp);
 			}
 
@@ -470,6 +492,11 @@ int main(int argc, char *argv[]){
 			line(annotatedFrame, Point2f(p_unwarp.x-25, p_unwarp.y), Point2f(p_unwarp.x+25, p_unwarp.y), Scalar(255,0,0), 3);
 			line(annotatedFrame, Point2f(p_unwarp.x, p_unwarp.y-25), Point2f(p_unwarp.x, p_unwarp.y+25), Scalar(255,0,0), 3);
 		}
+		
+		//Add FPS overlay
+		char fps[16];
+		snprintf(fps, sizeof(fps), "%4.1lf FPS", 1.0 / dt);
+		putText(annotatedFrame, fps, Point(10, 20), FONT_HERSHEY_SIMPLEX, 0.8, Scalar(0,0,255),2);
 		
 		//Display the image
 		imshow(WINDOW_NAME, annotatedFrame);

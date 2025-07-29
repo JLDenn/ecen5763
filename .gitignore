@@ -95,6 +95,12 @@ proj/train/annotations/neg/
 proj/train/frames/
 proj/train/trainer/train
 proj/train/*.mp4
+proj/train/out*
+proj/train/cascade_out/
+proj/train/opencv/
+proj/train/cascade.vec
+proj/train/positives.txt
+proj/units/detector/*.jpg
 
 
 proj/units/detector/chicken_detect
@@ -102,7 +108,10 @@ proj/units/locate/locate
 proj/units/coord/coord
 proj/units/coord/*.jpg
 proj/defender/defender
+proj/defender/*.mp4
 
 proj/train/yolo/
 proj/units/fisheye/fisheye
+
+
 

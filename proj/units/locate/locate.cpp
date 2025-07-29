@@ -18,6 +18,9 @@ using namespace cv;
 #define PIXELS_TO_INCH		(600.0/DECK_HEIGHT)
 #define OBJ_BORDER_SIZE		50
 
+#define IMG_WIDTH			1280
+#define IMG_HEIGHT			720
+
 vector<Point2f> clicks;
 bool processClicks = false;
 
@@ -129,23 +132,41 @@ int main( int argc, const char** argv )
 {
     CommandLineParser parser(argc, argv,
                              "{help h||}"
-							 "{@image||Image to apply perspective correction to}"
 							 "{@m||Set file to store new M in, and enable click to warp}"
+							 "{i||Image to apply perspective correction to. Use camera if not provided}"
 							 "{c||Enable creation of new M file}");
 
     parser.about( "\nThis program displays image correction, and allows click-on-corners to generate M (-p option)\n" );
     
-	if(!parser.check() || argc < 3){
+	if(!parser.check() || argc < 2){
 		parser.printMessage();
 		return -1;
 	}
 
-	
-	Mat scene = imread(parser.get<string>(0));
-	if(scene.empty()){
-		cout << "Error opening image at " << parser.get<string>(0) << endl;
-		return -1;
+	Mat scene;
+	if(parser.has("i")){
+		scene = imread(parser.get<string>("i"));
 	}
+	else{
+		//Capture a single frame from the camera
+		VideoCapture cap(0);
+		if(!cap.isOpened()){
+			cout << "Error openning camera to capture image" << endl;
+			return -1;
+		}
+
+		cap.set(CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
+		cap.set(CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
+		
+		cap >> scene;
+		cap.release();
+	}
+		
+		
+		if(scene.empty()){
+			cout << "Error opening image at " << parser.get<string>(0) << endl;
+			return -1;
+		}
 	
 
 	
@@ -153,7 +174,7 @@ int main( int argc, const char** argv )
 	
 	//We'll be creating the M output file
 	if(!parser.has("c")){
-		FILE *f = fopen(parser.get<string>(1).c_str(), "r");
+		FILE *f = fopen(parser.get<string>(0).c_str(), "r");
 		if(!f){
 			cout << "Unable to open M file for reading (" << parser.get<string>(1) << "). To create a new M file, use -c option" << endl;
 			return -1;
@@ -227,6 +248,8 @@ int main( int argc, const char** argv )
 		fclose(f);
 		cout << "New M file saved: " << endl;
 		cout << M << endl;
+		
+		cout << "To verify point conversion works, there should be blue dots directly on top of the black circles in the fit image" << endl;
 	}
 	else {	//Demo the read in correction
 		imshow("raw", scene);

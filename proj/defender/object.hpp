@@ -88,7 +88,7 @@ public:
 		int c = 1;
 		while(i>=0 && c < minSolnCount){
 			if(t - hist[i--].time > FIRE_SOLN_TIME_SPAN){
-				cout << "Only " << c << "entries, no soln" << endl;
+				//cout << "Only " << c << "entries, no soln" << endl;
 				return false;
 			}
 			c++;

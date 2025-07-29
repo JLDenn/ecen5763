@@ -8,6 +8,7 @@
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
+#include "opencv2/core.hpp"
 #include <dirent.h>
 #include <fstream>
 
@@ -25,6 +26,7 @@ int main(int argc, char **argv){
         "{help h|      | show help message}"
         "{@a	|<none>| the annotation text file with filenames and box coordinates}"
 		"{r     | .    | relative path to prepend to paths in annoation file}"
+//		"{b     |      | background image to use when subtracting bg features from the pos images. No subtraction if not included}"
     };
 	
     CommandLineParser parser( argc, argv, keys );
@@ -41,7 +43,7 @@ int main(int argc, char **argv){
 	ifstream file(objFilename);
 	if(!file.is_open()){
 		cout << "Can't open " << objFilename << endl;
-		return 1;
+		return -1;
 	}
 
 	//Get the executable path 
@@ -50,6 +52,14 @@ int main(int argc, char **argv){
 	if(p != string::npos)
 		exPath = string(argv[0]).substr(0, p);
 
+	// Mat bg;
+	// if(parser.has("b")){		
+		// bg = imread(parser.get<string>("b"));
+		// if(bg.empty()){
+			// cout << "Error reading background image: " << parser.get<string>("b") << endl;
+			// return -1;
+		// }
+	// }
 	
 	int negIdx = 1;
 	int posIdx = 1;
@@ -107,9 +117,54 @@ int main(int argc, char **argv){
 			
 			int start = 0;
 			Mat raw = imread(imgFilename);
+			if(raw.empty()){
+				cout << "error opening file: " << imgFilename << endl;
+				return -1;
+			}
+			
 			while(start + 4 <= vals.size()){
 				
 				Mat crop = raw(Rect(vals.at(start), vals[start+1], vals[start+2], vals[start+3]));
+				cout << "running" << endl;
+				
+				//If background image is provided, we'll use it to subtract what we can from positive selection rect
+				// if(!bg.empty()){
+					
+					// cout << "getting bg roi" << endl;
+					// Mat bg_roi = bg(Rect(vals.at(start), vals[start+1], vals[start+2], vals[start+3]));
+					
+					// Mat mask;
+					// Mat crop_comp[3];
+					// Mat bg_comp[3];
+					// split(crop, crop_comp);
+					// split(bg_roi, bg_comp);
+					
+					// cout << "split" << endl;
+					// static const char *ch[] = {"0", "1", "2"};
+					// for(int c=0;c<3;c++){
+						
+						// subtract(crop_comp[c], bg_comp[c], mask, noArray(), CV_8UC1);
+						// imwrite(string("diff_CH").append(ch[c]).append(".jpg"), mask);
+						// threshold(mask, mask, 10, 255, THRESH_BINARY);
+						// imwrite(string("bin_CH").append(ch[c]).append(".jpg"), mask);
+						// subtract(crop_comp[c], bg_comp[c], crop_comp[c], mask, CV_8UC1);
+						// imwrite(string("crop_CH").append(ch[c]).append(".jpg"), crop_comp[c]);
+						
+						// cout << "comp complete" << endl;
+					// }
+					
+					// merge(crop_comp, 3, crop);
+					
+					// imshow("crop", crop);
+					// waitKey();
+					// return 0;
+				// }
+				
+				
+				
+				
+				
+				
 				Mat sized;
 				resize(crop, sized, Size(OUTPUT_SIZE));
 				

@@ -7,7 +7,7 @@
 using namespace std;
 
 #define INVALID_HANDLE 		-1
-#define DEFAULT_RATE		200		//100.0 deg/sec
+#define DEFAULT_RATE		1000		//100.0 deg/sec
 
 
 class PanTilt {
@@ -32,7 +32,7 @@ private:
 		while(!write(serial, "\r", 1))
 			;
 		
-		cout << "Serial: " << cmd << endl;
+		//cout << "Serial: " << cmd << endl;
 		
 		if(!waitResp)
 			return true;
