@@ -30,7 +30,6 @@ static bool comp(DMatch a, DMatch b){
 
 //-----------------------------------------------------------------------------------------------------------
 static void mapPoint(Point2f p, Point2f *pt, Mat M){
-	
 	double d[] = {p.x, p.y, 1.0};
 	Mat pm(3, 1, CV_64F, d);
 	Mat pd = M * pm;		
@@ -38,64 +37,6 @@ static void mapPoint(Point2f p, Point2f *pt, Mat M){
 	pt->x = pd.at<double>(0) / pd.at<double>(2);
 	pt->y = pd.at<double>(1) / pd.at<double>(2);	
 }
-
-//-----------------------------------------------------------------------------------------------------------
-/**
-static void targetPoint(Point2f p, Vec2f *v){
-	
-	Point2f D0(305, 155);		//origin of the deck (where the gun is)
-	double theta_offset	= 10.0;	//Offset for the pan direction (due to mounting) indicates aligned with deck, degrees
-	double phi_mount = -30.0;		//Mounting angle (in tilt) of the pan & tilt (degrees)
-	double hight = 144.0;			//gun mount hight (above the deck, inches)
-	
-	Point2f shot = D0 - p;
-	
-	double theta = atan(shot.y / shot.x) * 180.0 / 3.14159 + theta_offset;
-	cout << "theta=" << theta << endl;
-	
-	//Since the pan&tilt is mounted at an angle (not flat), as we move in X(pan) we also change the tilt angle.
-	//	This is the component in pan based on the x(pan) position. 
-	double x_comp = cos((theta - theta_offset) * 3.14159 / 180.0) * phi_mount;
-	cout << "tilt component from pan=" << x_comp << endl;
-	
-	double range = sqrt(shot.y*shot.y + shot.x*shot.x);
-	cout << "range=" << range << endl;
-	
-	double drop_cor = pow(2.71828182845904, 0.01 * range) - 1; 
-	cout << "drop_cor=" << drop_cor << endl;
-	
-	double phi = -atan(hight / range) * 180.0/3.14159;
-	cout << "phi raw=" << phi << endl;
-
-	//Combine the raw phi and the drop and pan-component corrections
-	phi -= x_comp;
-	phi += drop_cor;
-	
-	//Return the calculated angles
-	(*v)[0] = theta;	//pan
-	(*v)[1] = phi;		//tilt
-}
-
-
-//-----------------------------------------------------------------------------------------------------------
-void mouse(int action, int xp, int yp, int, void *frame){
-	if(action == EVENT_LBUTTONDOWN){
-		//Mark click point on the image
-		Mat *fit = (Mat*)frame;
-		circle(*fit, Point(xp, yp), 5, Scalar(0,0,0), 8); 
-		imshow("fit", *fit);
-		
-		//Calculate distance from top left deck corner in inches
-		double x = (xp-50)*0.1285;
-		double y = (yp-50)*0.1285;
-		cout << endl << "Shooting chicken at " << x << "," << y << " inches from top left" << endl;
-		
-		Vec2f v;
-		targetPoint(Point2f(x,y), &v);
-		cout << "pan= " << v[0] << "°, tilt= " << v[1] << "° to hit target at " << x << "," << y << endl;	
-	}
-}
-**/
 
 static const char *prompts[] = {
 	"First click on the top left (NW) corner of the deck",
@@ -106,7 +47,8 @@ static const char *prompts[] = {
 	"Click on the SW corner of the deck (next to the wall again)",
 	};
 
-
+//-----------------------------------------------------------------------------------------------------------
+// Process mouse clicks on the corners of the deck so we can calculate the correction matrix (once we have all 6 clicks)
 void cornerClick(int action, int x, int y, int, void *frame){
 	if(action == EVENT_LBUTTONDOWN){
 		if(!processClicks){
@@ -126,7 +68,7 @@ void cornerClick(int action, int x, int y, int, void *frame){
 	}
 }
 
-
+//-----------------------------------------------------------------------------------------------------------
 /** @function main */
 int main( int argc, const char** argv )
 {
@@ -136,9 +78,9 @@ int main( int argc, const char** argv )
 							 "{i||Image to apply perspective correction to. Use camera if not provided}"
 							 "{c||Enable creation of new M file}");
 
-    parser.about( "\nThis program displays image correction, and allows click-on-corners to generate M (-p option)\n" );
+    parser.about( "\nThis program displays image correction, and allows click-on-corners to generate M (-c option)\n" );
     
-	if(!parser.check() || argc < 2){
+	if(!parser.check() || argc < 2 || parser.has("help")){
 		parser.printMessage();
 		return -1;
 	}
@@ -162,41 +104,45 @@ int main( int argc, const char** argv )
 		cap.release();
 	}
 		
-		
-		if(scene.empty()){
-			cout << "Error opening image at " << parser.get<string>(0) << endl;
-			return -1;
-		}
+	if(scene.empty()){
+		cout << "Error getting image" << endl;
+		return -1;
+	}
 	
-
+	string mfile = parser.get<string>(0);
 	
 	double M_raw[3][3] = {{1.0,0.0,0.0}, {0.0,1.0,0.0}, {0.0,0.0,1.0}};
+	Mat M = Mat(3,3,CV_64F,M_raw);
+	Mat fit;
 	
-	//We'll be creating the M output file
 	if(!parser.has("c")){
-		FILE *f = fopen(parser.get<string>(0).c_str(), "r");
+		//We'll be reading the M file in
+		
+		FILE *f = fopen(mfile.c_str(), "r");
 		if(!f){
-			cout << "Unable to open M file for reading (" << parser.get<string>(1) << "). To create a new M file, use -c option" << endl;
+			cout << "Unable to open M file for reading (" << mfile << "). To create a new M file, use -c option" << endl;
 			return -1;
 		}
 		else{
 			//Read in the file contents to M
 			for(int i=0;i<3;i++){
 				if(3 != fscanf(f, "%lf, %lf, %lf", &M_raw[i][0],&M_raw[i][1],&M_raw[i][2])){
-					cout << "Error reading M file (" << parser.get<string>(1) << ")" << endl;
+					cout << "Error reading M file (" << mfile << ")" << endl;
 					return -1;
 				}
 			}
 			fclose(f);
 		}
+		
+		//Demo the read in M file by displaying the raw and newly fit scenes
+		imshow("raw", scene);
+		cout << "Warping with: " << endl;
+		cout << M << endl;
+		warpPerspective(scene, fit, M, Size(OBJ_BORDER_SIZE*2 + DECK_WIDTH*PIXELS_TO_INCH, OBJ_BORDER_SIZE*2 + DECK_HEIGHT*PIXELS_TO_INCH));
 	}
+	else{
+		//We'll be creating the M file
 		
-		
-	Mat M = Mat(3,3,CV_64F,M_raw);
-	Mat fit;
-
-	//Are we expected to create a new M file?
-	if(parser.has("c")){
 		namedWindow("raw");
 		setMouseCallback("raw", cornerClick, &scene);	
 
@@ -235,9 +181,9 @@ int main( int argc, const char** argv )
 			circle(fit, Point((int) pt.x, (int) pt.y), 3, Scalar(255,0,0), 2);
 		}
 
-		FILE *f = fopen(parser.get<string>(1).c_str(), "w");
+		FILE *f = fopen(mfile.c_str(), "w");
 		if(!f){
-			cout << "Error openning M file for writing (" << parser.get<string>(1) << endl;
+			cout << "Error openning M file for writing (" << mfile << endl;
 			return -1;
 		}
 		
@@ -251,13 +197,7 @@ int main( int argc, const char** argv )
 		
 		cout << "To verify point conversion works, there should be blue dots directly on top of the black circles in the fit image" << endl;
 	}
-	else {	//Demo the read in correction
-		imshow("raw", scene);
-		cout << "Warping with: " << endl;
-		cout << M << endl;
-		warpPerspective(scene, fit, M, Size(OBJ_BORDER_SIZE*2 + DECK_WIDTH*PIXELS_TO_INCH, OBJ_BORDER_SIZE*2 + DECK_HEIGHT*PIXELS_TO_INCH));
-	}
-	
+
 	imshow("fit", fit);
 	
 	waitKey();

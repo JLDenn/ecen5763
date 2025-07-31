@@ -51,21 +51,24 @@ private:
 			return false;
 		
 		char c;
-		int r = read(serial, &c, 1);
-		while(r > 0){
-			rxBuf += c;
-			if(c == '\r')
-				return true;
-			r = read(serial, &c, 1);
+		while(1){
+			int r = read(serial, &c, 1);
+			if(r < 0){
+				if(errno == EAGAIN || errno == EWOULDBLOCK){
+					usleep(100);
+					continue;
+				}
+				return false;
+			}
+			if(r){
+				rxBuf += c;
+				if(c == '\r')
+					return true;
+			}
 		}
 		
-		if(r < 0){
-			if(errno == EAGAIN || EWOULDBLOCK)
-				return true;
-			return false;
-		}
-		
-		return true;
+		//Should never get here!
+		return false;
 	}
 	
 

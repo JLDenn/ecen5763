@@ -21,6 +21,8 @@ class Object {
 private:
 	vector<inst_t> hist;		//x, y, quality (0-1). Distances in inches from NW deck corner
 	int minSolnCount;
+	float minQuality;			
+	char stateString[32];
 
 	//Get the current time in ms
 	uint64_t curTime(){
@@ -35,8 +37,9 @@ private:
 	}
 
 public:
-	Object(int minSolnCount_setting = FIRE_SOLN_MIN_INST){
+	Object(float minQuality_setting = 0.2, int minSolnCount_setting = FIRE_SOLN_MIN_INST){
 		minSolnCount = minSolnCount_setting;
+		minQuality = minQuality_setting;
 	}
 	
 	~Object(){ }
@@ -53,7 +56,7 @@ public:
 	
 	//------------------------------------------------------------------------
 	//Add a new detection instance to our object history
-	void newDetect(Point2f loc, uint64_t time = 0, float quality = 1.0){
+	void newDetect(Point2f loc, float quality = 1.0, uint64_t time = 0){
 		
 		if(!time)
 			time = curTime();
@@ -66,17 +69,19 @@ public:
 	}
 	
 	//------------------------------------------------------------------------
-	//Check if this object should be shot at
-	bool fireSolution(){
+	float quality(int *count = NULL, uint64_t *span = NULL){
+		
+		if(count)
+			*count = 0;
 		
 		//Check if we have the minimum number of instances required (ignoring the timestamps for now)
-		if(hist.size() < minSolnCount)
-			return false;
+		if(!hist.size())
+			return 0.0;
 	
 	
 		//Check if the full detection span of time is less than the required motion time before we trigger
-		if(hist[hist.size()-1].time - hist[0].time < FIRE_SOLN_TIME_SPAN)
-			return false;
+		if(span)
+			*span = hist[hist.size()-1].time - hist[0].time;
 		
 		
 		//Now we'll run through the list starting with the most recent entries, and we'll count the number of entries found
@@ -84,29 +89,50 @@ public:
 		//	If we exit the while (likely due to enough instances found (c >= minSolnCount), we can return true. 
 		//	We know we won't run out of loops (i) because we know we have enough entries due to the above check.
 		int i = hist.size()-1;
-		uint64_t t = hist[i--].time;
+		uint64_t t = hist[i].time;
+		float q = hist[i].quality;
+		i--;
 		int c = 1;
+		
 		while(i>=0 && c < minSolnCount){
-			if(t - hist[i--].time > FIRE_SOLN_TIME_SPAN){
-				//cout << "Only " << c << "entries, no soln" << endl;
-				return false;
+			if(t - hist[i].time > FIRE_SOLN_TIME_SPAN){
+				if(count) 
+					*count = c;
+				return q/c;
 			}
+			
+			q += hist[i].quality;
+			i--;
 			c++;
 		}
 		
-		return true;
+		if(count)
+			*count = c;
+		return q / c;
+	}
+	
+	//------------------------------------------------------------------------
+	//Check if this object should be shot at
+	bool fireSolution(){
+		int c;
+		uint64_t span;
+		float q = quality(&c, &span);
+		return c >= minSolnCount && span >= FIRE_SOLN_TIME_SPAN && q >= minQuality;
 	}
 	
 	//------------------------------------------------------------------------
 	//Called after fireSolution has found a valid solution, but we'll return a shot location whether or not that has passed
 	//This uses a linear approximation from the last (up to) 5 samples to estimate where the target will be at the provided time
 	//(which will be added to the current time)
-	Point2f getShotLoc(uint64_t time = 0){
+	Point2f getShotLoc(bool staticTargeting = false, uint64_t time = 0){
 		if(!hist.size())
 			return Point2f(-1,-1);
 		
 		if(hist.size() == 1)
 			return hist[0].loc;
+		
+		if(staticTargeting)
+			return hist[hist.size()-1].loc;
 		
 		//use current time if time wasn't provided
 		if(!time)
@@ -198,6 +224,14 @@ public:
 		return hist.size() ? true : false;
 	}
 	
+	
+	//------------------------------------------------------------------------
+	//Return a short string with stats for this current track
+	const char *stats(){
+		snprintf(stateString, sizeof(stateString), "C%lu Q%0.2f", hist.size(), quality());
+		return stateString;
+	}
+	
 	//------------------------------------------------------------------------
 	//Test all the critical functions in the class (distructive)
 	int test(){		
@@ -213,6 +247,8 @@ public:
 		if(fireSolution()){ cout << "fireSolution() did not return false when history is empty" << endl; return -1; }
 		if(getShotLoc() != Point2f(-1,-1)){ cout << "getShotLoc() did not return -1,-1 when history is empty" << endl; return -1;}
 		
+		//DOES NOT TEST QUALITY FEATURE
+		
 		uint64_t t1 = 200000;
 		newDetect(p1, t1);
 		if(fireSolution()){ cout << "fireSolution() did not return false when history is < " << minSolnCount << endl; return -1;}
@@ -223,20 +259,20 @@ public:
 		uint64_t t2 = t1+1000;
 		newDetect(p2, t2);
 		if(fireSolution()){ cout << "fireSolution() did not return false when history is < " << minSolnCount << endl; return -1;}
-		Point2f p = getShotLoc(t2+1000);
+		Point2f p = getShotLoc(false, t2+1000);
 		if(p != Point2f(30,10)){cout << "getShotLoc() returned incorrect results with two entries (10,10)@200000, (20,10)@201000. Should be (30,10)@202000, but result was: " << p.x << "," << p.y << endl; return -1;}
 		
 		hist.clear();
 		newDetect(p1,t1);
 		newDetect(p3,t2);
-		p = getShotLoc(t2+1000);
+		p = getShotLoc(false, t2+1000);
 		if(p != Point2f(30,30)){cout << "getShotLoc() returned incorrect results with two entries (10,10)@200000, (20,20)@201000. Should be (30,30)@202000, but result was: " << p.x << "," << p.y << endl; return -1;}
 		
 		hist.clear();
 		for(int i=0;i<minSolnCount+1;i++)
 			newDetect(p1,t1+i*80);
 		if(!fireSolution()){cout << "fireSolution() returned false when there are enough history elements to call valid" << endl; return -1;}
-		p = getShotLoc(t1+minSolnCount*80);
+		p = getShotLoc(false, t1+minSolnCount*80);
 		if(p != p1){ cout << "getShotLoc() did not return the point value that was stored in all positions (10,10). returned instead: " << p.x << "," << p.y << endl; return -1;}
 		
 		return 0;

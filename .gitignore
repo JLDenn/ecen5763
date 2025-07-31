@@ -58,7 +58,7 @@ ex2/q4/v4l2/capture
 ex2/q4/overlay/overlay
 ex2/q5/edge
 
-#### Exercise 3 ####
+#### Exercise 3 #### 
 ex3/q2/lines
 ex3/q3/circles
 ex3/q4/detect
@@ -109,9 +109,11 @@ proj/units/coord/coord
 proj/units/coord/*.jpg
 proj/defender/defender
 proj/defender/*.mp4
+proj/defender/frames/
 
-proj/train/yolo/
 proj/units/fisheye/fisheye
+proj/untis/recorder/recorder
+proj/units/recorder/frames/
 
 
 

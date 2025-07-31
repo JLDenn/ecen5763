@@ -1,4 +1,4 @@
-EXEC     = coord
+EXEC     = recorder
 CC       = g++
 
 CFLAGS   = -I/usr/include/opencv4 

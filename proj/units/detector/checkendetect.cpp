@@ -21,11 +21,11 @@ Mat detect( Mat frame )
 {
     Mat frame_gray;
     cvtColor( frame, frame_gray, COLOR_BGR2GRAY );
-    equalizeHist( frame_gray, frame_gray );
+    //equalizeHist( frame_gray, frame_gray );
 
     //-- Detect birds
     std::vector<Rect> birds;
-    bird_cascade.detectMultiScale( frame_gray, birds, 1.4, 5, CASCADE_SCALE_IMAGE);
+    bird_cascade.detectMultiScale( frame_gray, birds);
 	cout << "found " << birds.size() << endl;
 
     for ( size_t i = 0; i < birds.size(); i++ ){
@@ -42,27 +42,28 @@ int main( int argc, const char** argv )
 {
     CommandLineParser parser(argc, argv,
                             "{help h||}"
+							"{@cascade||Cascade model to use}"
                             "{@image||Image to process}"
 							"{o||output results to this file}");
 
     parser.about( "\nThis program demonstrates using the cv::CascadeClassifier class to detect objects (chickens) in an image.\n"
                   "You can use Haar or LBP features.\n\n" );
     
-	if(!parser.check() || argc < 2){
+	if(!parser.check() || argc < 3){
 		parser.printMessage();
 		return -1;
 	}
 
     //-- 1. Load the cascades
-    if(!bird_cascade.load( "../../train/cascade_out/cascade.xml" ) ){
+    if(!bird_cascade.load( parser.get<string>(0) ) ){
         cout << "--(!)Error loading cascade\n";
         return -1;
     };
 
 
-	Mat img_raw = imread(parser.get<String>("@image"));
+	Mat img_raw = imread(parser.get<String>(1));
     if(img_raw.empty()){
-		cout << "Error loading image: " << parser.get<string>("@image") << endl;
+		cout << "Error loading image: " << parser.get<string>(1) << endl;
 		return 1;
 	}
 	Mat img;
