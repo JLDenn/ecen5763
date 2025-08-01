@@ -20,7 +20,13 @@ struct {
 	int frameCount;
 	const char *frameNameFormat;
 	bool noDisplay;
-}opts = {.frameCount = 0, .frameNameFormat = "frames/f%05d.jpg", .noDisplay = false};
+	float frameRate;
+}opts = {
+		.frameCount = 0, 
+		.frameNameFormat = "frames/f%05d.jpg", 
+		.noDisplay = false, 
+		.frameRate = 120.0,
+};
 
 
 /** @function main */
@@ -28,7 +34,7 @@ int main( int argc, char* const* argv )
 {
 
 	int opt;
-	while( (opt = getopt(argc, argv, "c:n:dh") ) != -1){
+	while( (opt = getopt(argc, argv, "c:n:dhr:") ) != -1){
 		switch(opt){
 		case 'c':
 			opts.frameCount = atoi(optarg);
@@ -43,13 +49,20 @@ int main( int argc, char* const* argv )
 			opts.noDisplay = true;
 			cout << "Disabling live view" << endl;
 			break;
+			
+		case 'r':
+			opts.frameRate = atof(optarg);
+			cout << "Limiting frame output rate to " << opts.frameRate << " fps" << endl;
+			break;
 
 		case 'h':
 		default:
 			fprintf(stderr, "Usage: %s \n"
-				"\t[-c <frameCount> = number of frames to record] \n"
-				"\t[-n <frameNameFormat> = name format to use for recorded frames (default: %s)\n",
-				argv[0], opts.frameNameFormat);
+				"\t[-c <frameCount> = number of frames to record]\n"
+				"\t[-n <frameNameFormat> = name format to use for recorded frames (default: %s)]\n"
+				"\t[-d = disable live view (allows for recording over ssh connection)]\n"
+				"\t[-r <maxFrameRate> = Maximum frame rate output while recording (default: %3.2f)]\n",
+				argv[0], opts.frameNameFormat, opts.frameRate);
 			exit(-1);
 		}
 	}
@@ -63,6 +76,7 @@ int main( int argc, char* const* argv )
 	cap.set(CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
 	cap.set(CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
 
+	struct timespec ts = {0}, ts_last = {0};
 
 	int captureCount = opts.frameCount > 0 ? opts.frameCount : 0;
 	Mat frame;
@@ -75,15 +89,21 @@ int main( int argc, char* const* argv )
 			return -1;
 		}
 		
-		frameIndex++;
-		
-		char outname[256];
-		snprintf(outname, sizeof(outname), opts.frameNameFormat, frameIndex);
-		imwrite(outname, frame);
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		double dt = ((double)ts.tv_sec + ts.tv_nsec/1000000000.0) -  ((double)ts_last.tv_sec + ts_last.tv_nsec/1000000000.0);
+		if(dt > 1/opts.frameRate){
+			frameIndex++;
+			
+			char outname[256];
+			snprintf(outname, sizeof(outname), opts.frameNameFormat, frameIndex);
+			imwrite(outname, frame);
+			
+			ts_last = ts;
+		}
 		
 		if(!opts.noDisplay){
 			imshow("Live", frame);
-			if(waitKey() == 27)
+			if(waitKey(1) == 27)
 				break;
 		}
 	}
