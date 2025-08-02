@@ -56,7 +56,7 @@ public:
 	
 	//------------------------------------------------------------------------
 	//Add a new detection instance to our object history
-	void newDetect(Point2f loc, float quality = 1.0, uint64_t time = 0){
+	void newDetect(Point2f loc, float quality = 0.0, uint64_t time = 0){
 		
 		if(!time)
 			time = curTime();
