@@ -9,8 +9,10 @@
 #include "opencv2/objdetect.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
+#include <unistd.h>
 #include <iostream>
 #include <chrono>
+#include <ctime>
 
 #include "pantilt.hpp"
 #include "object.hpp"
@@ -28,6 +30,16 @@
 
 //Define the application quit key (esc)
 #define ESCAPE 		27
+
+
+#define DECK_HEIGHT			167						//Inches S-N
+#define DECK_WIDTH			290						//Inches W-E (visible)
+#define PIXEL_TO_INCH		(600.0/DECK_HEIGHT)		//AFTER point has been warped to correct for perspective
+#define DECK_FRAME_BORDER	50
+
+#define PT_LOC_X			305
+#define PT_LOC_Y			155
+
 
 struct {
 	bool test;
@@ -49,16 +61,16 @@ using namespace std;
 //Targetting thread communication
 static target_t targetMem;
 
+//Breed determination and display values
+#define WHITE				0
+#define ORANGE				1
+#define BLACK				2
+static const char *breeds[] = {"White", "Orange", "Black"};
+static int targetBreed = WHITE; 	//Holds the breed determination while targetMem.engage is true;
+
+//3x3 matrix we'll use for perspective correction. This is loaded from ./m.mat, or other based on CLI options.
 static Mat M;
 
-
-#define DECK_HEIGHT			167						//Inches S-N
-#define DECK_WIDTH			290						//Inches W-E (visible)
-#define PIXEL_TO_INCH		(600.0/DECK_HEIGHT)		//AFTER point has been warped to correct for perspective
-#define DECK_FRAME_BORDER	50
-
-#define PT_LOC_X			305
-#define PT_LOC_Y			155
 
 //-------------------------------------------------------------------
 //Read the M matrix from the m.mat file (or overridden path)
@@ -105,6 +117,7 @@ static Point2f pointWarp(Point2f p, Mat M){
 
 //-------------------------------------------------------------------
 //Convert a deck coordinate (in inches) to pre-warped image pixel coordinates
+// (this reverses the pointWrap function)
 static Point2f pointUnWarp(Point2f p, Mat M){
 	p.x *= PIXEL_TO_INCH;
 	p.x += DECK_FRAME_BORDER;
@@ -187,8 +200,10 @@ static void targetPoint(Point2f p, Vec2f *v){
 
 
 
-
+//Define the time we'll wait following a shot before we move back to the 0,0 position. This ensures if we have multiple shots
+// in close succession, we don't take extra time to return to 0,0 after each.
 #define IDLE_WAIT	5000
+
 //----------------------------------------------------------------------------
 //----------------------------------------------------------------------------
 //						TARGETTING THREAD
@@ -197,10 +212,13 @@ static void targetPoint(Point2f p, Vec2f *v){
 //----------------------------------------------------------------------------
 void * targetingThread(void *arg){
 
+	//Get the targetMem structure pointer and instanciate the pan & tilt class
 	target_t *target = (target_t*) arg;
 	PanTilt pt;
 	
+	//If we're running in dry mode, we don't open the serial port or send the p&t home.
 	if(!opts.dry){
+		//We're running in wet mode, so we need to open the serial port, and send the p&t home.
 		if(!pt.openPort())
 			exit(-1);
 
@@ -210,6 +228,8 @@ void * targetingThread(void *arg){
 	long idle = 0;
 	while(target->running){
 		
+		//We only have something to do if target->engage is true. That indicates we own the memory and it won't change
+		//	until we are finished with it and set engage back to false. 
 		if(target->engage){
 			
 			Vec2f v;
@@ -236,6 +256,8 @@ void * targetingThread(void *arg){
 			idle = IDLE_WAIT;
 		}
 		else if(--idle == 0){
+			//Nothing to do... unless we've reached the end of the idle period where we'll direct the p&t back to 0,0 since we haven't 
+			// had an active target for at least the IDLE_WAIT time.
 			if(!opts.dry)
 				pt.moveTo(0,0);
 		}
@@ -277,7 +299,7 @@ static int findMotion(Mat frame, Mat *avg, vector<vector<Vec2i>> *contours){
 	threshold( diff, threshFrame, opts.motionThresh, 255, THRESH_BINARY);
 	
 	Mat dilateFrame;
-	dilate(threshFrame, dilateFrame, getStructuringElement(MORPH_RECT, Size(3,3)), Point(-1,-1), 20);
+	dilate(threshFrame, dilateFrame, getStructuringElement(MORPH_RECT, Size(3,3)), Point(-1,-1), 10);
 	
 	vector<vector<Vec2i>> rawContours;
 	findContours(dilateFrame, rawContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
@@ -291,6 +313,7 @@ static int findMotion(Mat frame, Mat *avg, vector<vector<Vec2i>> *contours){
 }
 
 //---------------------------------------------------------------------
+// Get the current time in 1ms ticks
 static uint64_t curTime(){
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -308,6 +331,77 @@ void onClick(int action, int x, int y, int, void*){
 	}
 }
 
+//---------------------------------------------------------------------
+// We just initiated a shooting event, so we need to now determine which chicken was to blame
+//	and log that information to the log file.
+int logShot(Mat roi, vector<Rect> birds){
+	
+	Mat1b mask(roi.rows, roi.cols, uchar(0));
+	Rect r((roi.cols - 20) / 2, (roi.rows - 20)/2, 20, 20);
+	
+	//If there were birds detected, we'll use the first Rect to build our hotspot to help in the group shot case
+	if(birds.size() > 0){
+		r = birds[0];		
+		
+		//Shrink the hot spot to 20x20px if it is larger than that
+		if(r.width > 20){
+			r.x += (r.width-20)/2;
+			r.width = 20;
+		}
+		if(r.height > 20){
+			r.y += (r.height-20)/2;
+			r.height = 20;
+		}
+	}
+		
+	
+	//Limit the rect to smaller than the ROI with a least a 1 pixel border
+	if(roi.cols < r.width+2){
+		int w = roi.cols/2;
+		r.x += (r.width - w)/2;
+		r.width = w;
+	}
+	if(roi.rows < r.height+2){
+		int h = roi.rows/2;
+		r.y += (r.height - h)/2;
+		r.height = h;
+	}
+	rectangle(mask, r, 255, -1);
+	
+	//Get the average object area color
+	float obj = mean(roi, mask)[0];
+
+	//Invert the mask and get the average background area color
+	bitwise_not(mask, mask);
+	float bg = mean(roi, mask)[0];
+	
+	//Use the ratio of the obj and bg colors to determine what breed is being targeted... 
+	//	The orange chickens are very close in color to the deck, so they are ~1.0, black is <= 0.8, white is >= 1.2
+	int breed = ORANGE;
+	if(obj/bg >= 180.0/150.0)
+		breed = WHITE;
+	else if(obj/bg <= 120.0/150.0)
+		breed = BLACK;
+	
+	if(opts.verbose)
+		cout << "Breed determination... objAvg: " << obj << ", bgAvg: " << bg << " (" << (obj/bg) << ") -- Chicken: " << breeds[breed] << endl;
+	
+	//Open the log file (as append), write an entry and close
+	int f = open("infraction_log.txt", O_WRONLY | O_APPEND | O_CREAT, 0664);
+	if(f != -1){
+		char entry[64];
+		//Create the log entry line: Offending chicken [White|Orange|Black], obj/bg (breed determination value), seconds since epoc.
+		int s = snprintf(entry, sizeof(entry), "%s,%f,%lu\n", breeds[breed], obj/bg, time(0)); 
+		//Append the entry line to the log file. 
+		write(f, entry, s);
+		close(f);
+	}
+	else if(opts.verbose)
+		cout << "Error opening the infraction_log.txt output file" << endl;
+
+	return breed;
+}
+
 //------------------------------------------------------------------
 //	Process CLI arguments
 static void readOpts(int argc, char *argv[]){
@@ -315,9 +409,9 @@ static void readOpts(int argc, char *argv[]){
 	int opt;
 	
 	//Defaults
-	opts.minArea = 1000;
-	opts.motionExpansion = 10;
-	opts.motionThresh = 40;
+	opts.minArea = 400;
+	opts.motionExpansion = 15;
+	opts.motionThresh = 10;
 	opts.demo = NULL;
 	opts.mfile = "m.mat";
 	opts.cascadefile = "chicken_cascade.xml";
@@ -379,7 +473,7 @@ static void readOpts(int argc, char *argv[]){
 		
 		case 'h':
 		default:
-			fprintf(stderr, "Usage: %s \n\t[-t = test run] \n"
+			fprintf(stderr, "Usage: %s\n"
 				"\t[-t = run unit tests and exit]\n"
 				"\t[-D = run dry, disable the pan & tilt and simply indicate where shots would be taken]\n"
 				"\t[-v <video/path> = use file as video source] \n"
@@ -450,6 +544,13 @@ int main(int argc, char *argv[]){
     };
 	
 	
+	//Put a "new application start" message in the infraction log
+	int f = open("infraction_log.txt", O_WRONLY | O_APPEND | O_CREAT, 0664);
+	if(f >= 0){
+		write(f, "\n\n### Defender Application Start ###\n\n", 38);
+		close(f);
+	}
+	
 	//Create thread that will interface with the squirt gun / pan&tilt
 	pthread_t targetThreadID;
 	targetMem.engage = false;
@@ -507,10 +608,6 @@ int main(int argc, char *argv[]){
 		//Find motion and return the resulting contours
 		vector<vector<Vec2i>> contours;
 		int count = findMotion(grayFrame, &avgBackgroundFrame, &contours);
-		
-		//Output the number of contours found in verbose mode
-		if(opts.verbose && count)
-			cout << "Found " << count << " contours" << endl;
 		
 		//Declare and fill the frame we'll be annotating with all the motion boxes, the shot indicator and FPS overlay
 		Mat annotatedFrame;
@@ -572,6 +669,10 @@ int main(int argc, char *argv[]){
 						
 						//Clear the object tracker since we're shooting, and we'll need to redetect before we shoot again. 
 						objs[j].flush();
+						
+						//Determine, log and store the breed we think we're shooting at. This will be displayed next to the crosshairs
+						//Does not need to be before we set engage true since it is only used in this thread. 
+						targetBreed = logShot(motionSubFrame, birds);
 					}
 					break;
 				}
@@ -601,6 +702,9 @@ int main(int argc, char *argv[]){
 			circle(annotatedFrame, p_unwarp, 20, Scalar(255,0,0), 5);
 			line(annotatedFrame, Point2f(p_unwarp.x-25, p_unwarp.y), Point2f(p_unwarp.x+25, p_unwarp.y), Scalar(255,0,0), 3);
 			line(annotatedFrame, Point2f(p_unwarp.x, p_unwarp.y-25), Point2f(p_unwarp.x, p_unwarp.y+25), Scalar(255,0,0), 3);
+			
+			//Display which breed we're shooting at
+			putText(annotatedFrame, breeds[targetBreed], Point2f(p_unwarp.x+15, p_unwarp.y+25), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255,0,0), 1);
 		}
 		
 		//Add FPS overlay
