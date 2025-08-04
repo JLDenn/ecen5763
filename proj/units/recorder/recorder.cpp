@@ -1,5 +1,6 @@
 /**
-	The base for this code came from code that was initially used for Exercise 1 (face detection)
+	This code can be used to record raw image frames from the camera. These frames can be used to assemble a video that can be 
+	processed by the defender app at a later time (likely using the dry -D option)
 */
 
 #include "opencv2/objdetect.hpp"

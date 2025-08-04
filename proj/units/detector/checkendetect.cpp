@@ -1,5 +1,5 @@
 /**
-	The base for this code came from code that was initially used for Exercise 1 (face detection)
+	This code tests the cascade classifier after training to check if it works properly
 */
 
 #include "opencv2/objdetect.hpp"

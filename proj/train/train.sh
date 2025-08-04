@@ -5,6 +5,8 @@ set -e
 dir=`dirname $0`
 
 echo "This command creates an annotation file that will then be used by $dir/annotations/sort to extract positive images for training"
+echo "$dir/frames/ directory must contain images with positive objects in them that will be cropped out and saved."
+echo ""
 echo "This script will overwrite $dir/chicken_annotations.txt as objects are manually annotated."
 
 while true; do
