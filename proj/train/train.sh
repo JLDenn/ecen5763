@@ -20,6 +20,8 @@ done
 
 opencv_annotation -images=$dir/frames/ -annotations=$dir/chicken_annotations.txt
 
+mkdir -p $dir/annotations/neg
+mkdir -p $dir/annotations/pos
 rm -rf $dir/annotations/pos/*
 rm -rf $dir/annotations/neg/*
 make -C $dir/annotations/
