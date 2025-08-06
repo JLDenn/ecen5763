@@ -47,6 +47,7 @@ private:
 	// Read any bytes in the read buffer into the local rxBuf vector
 	// this function simply reads whatever is found into the local buffer, but will stop reading at '\r' if found
 	bool readResp(){
+		rxBuf.clear();
 		if(serial == INVALID_HANDLE)
 			return false;
 		

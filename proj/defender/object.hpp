@@ -250,27 +250,27 @@ public:
 		//DOES NOT TEST QUALITY FEATURE
 		
 		uint64_t t1 = 200000;
-		newDetect(p1, t1);
+		newDetect(p1, 1.0, t1);
 		if(fireSolution()){ cout << "fireSolution() did not return false when history is < " << minSolnCount << endl; return -1;}
 		if(getShotLoc() != p1){cout << "getShotLoc() did not return only point loaded" << endl; return -1;}
 		if(!checkLoc(p2)){ cout << "checkLoc() did not return true when valid point was checked" << endl; return -1;}
 		if(checkLoc(p4)){ cout << "checkLoc() returned true when new point was too far away" << endl; return -1;}
 		
 		uint64_t t2 = t1+1000;
-		newDetect(p2, t2);
+		newDetect(p2, 1.0, t2);
 		if(fireSolution()){ cout << "fireSolution() did not return false when history is < " << minSolnCount << endl; return -1;}
 		Point2f p = getShotLoc(false, t2+1000);
 		if(p != Point2f(30,10)){cout << "getShotLoc() returned incorrect results with two entries (10,10)@200000, (20,10)@201000. Should be (30,10)@202000, but result was: " << p.x << "," << p.y << endl; return -1;}
 		
 		hist.clear();
-		newDetect(p1,t1);
-		newDetect(p3,t2);
+		newDetect(p1, 1.0, t1);
+		newDetect(p3, 1.0, t2);
 		p = getShotLoc(false, t2+1000);
 		if(p != Point2f(30,30)){cout << "getShotLoc() returned incorrect results with two entries (10,10)@200000, (20,20)@201000. Should be (30,30)@202000, but result was: " << p.x << "," << p.y << endl; return -1;}
 		
 		hist.clear();
 		for(int i=0;i<minSolnCount+1;i++)
-			newDetect(p1,t1+i*80);
+			newDetect(p1, 1.0, t1+i*(FIRE_SOLN_TIME_SPAN/minSolnCount));
 		if(!fireSolution()){cout << "fireSolution() returned false when there are enough history elements to call valid" << endl; return -1;}
 		p = getShotLoc(false, t1+minSolnCount*80);
 		if(p != p1){ cout << "getShotLoc() did not return the point value that was stored in all positions (10,10). returned instead: " << p.x << "," << p.y << endl; return -1;}
